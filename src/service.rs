@@ -642,100 +642,36 @@ impl FgpService for BrowserService {
     fn method_list(&self) -> Vec<MethodInfo> {
         vec![
             // Navigation and state
-            MethodInfo {
-                name: "browser.open".to_string(),
-                description: "Navigate to a URL".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.snapshot".to_string(),
-                description: "Get ARIA accessibility tree with @eN refs".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.screenshot".to_string(),
-                description: "Capture screenshot (base64 or file)".to_string(),
-                params: vec![],
-            },
+            MethodInfo::new("browser.open", "Navigate to a URL"),
+            MethodInfo::new("browser.snapshot", "Get ARIA accessibility tree with @eN refs"),
+            MethodInfo::new("browser.screenshot", "Capture screenshot (base64 or file)"),
             // Interaction
-            MethodInfo {
-                name: "browser.click".to_string(),
-                description: "Click element by @eN ref or CSS selector".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.fill".to_string(),
-                description: "Fill input field with value".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.press".to_string(),
-                description: "Press a keyboard key".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.select".to_string(),
-                description: "Select an option from a dropdown".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.check".to_string(),
-                description: "Set checkbox/radio state".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.hover".to_string(),
-                description: "Hover over an element".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.scroll".to_string(),
-                description: "Scroll to element or by amount".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.press_combo".to_string(),
-                description: "Press key with modifiers (Ctrl, Shift, Alt, Meta)".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.upload".to_string(),
-                description: "Upload a file to a file input element".to_string(),
-                params: vec![],
-            },
+            MethodInfo::new("browser.click", "Click element by @eN ref or CSS selector"),
+            MethodInfo::new("browser.fill", "Fill input field with value"),
+            MethodInfo::new("browser.press", "Press a keyboard key"),
+            MethodInfo::new("browser.select", "Select an option from a dropdown"),
+            MethodInfo::new("browser.check", "Set checkbox/radio state"),
+            MethodInfo::new("browser.hover", "Hover over an element"),
+            MethodInfo::new("browser.scroll", "Scroll to element or by amount"),
+            MethodInfo::new(
+                "browser.press_combo",
+                "Press key with modifiers (Ctrl, Shift, Alt, Meta)",
+            ),
+            MethodInfo::new("browser.upload", "Upload a file to a file input element"),
             // Auth state
-            MethodInfo {
-                name: "browser.state.save".to_string(),
-                description: "Save auth state (cookies + localStorage)".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.state.load".to_string(),
-                description: "Load saved auth state".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.state.list".to_string(),
-                description: "List saved auth states".to_string(),
-                params: vec![],
-            },
+            MethodInfo::new(
+                "browser.state.save",
+                "Save auth state (cookies + localStorage)",
+            ),
+            MethodInfo::new("browser.state.load", "Load saved auth state"),
+            MethodInfo::new("browser.state.list", "List saved auth states"),
             // Session management
-            MethodInfo {
-                name: "browser.session.new".to_string(),
-                description: "Create a new isolated session with its own browser context"
-                    .to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.session.list".to_string(),
-                description: "List all active sessions".to_string(),
-                params: vec![],
-            },
-            MethodInfo {
-                name: "browser.session.close".to_string(),
-                description: "Close and dispose a session".to_string(),
-                params: vec![],
-            },
+            MethodInfo::new(
+                "browser.session.new",
+                "Create a new isolated session with its own browser context",
+            ),
+            MethodInfo::new("browser.session.list", "List all active sessions"),
+            MethodInfo::new("browser.session.close", "Close and dispose a session"),
         ]
     }
 }
