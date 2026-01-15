@@ -7,7 +7,9 @@ use anyhow::{Context, Result};
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::browser::BrowserContextId;
 use chromiumoxide::cdp::browser_protocol::input::{DispatchKeyEventParams, DispatchKeyEventType};
-use chromiumoxide::cdp::browser_protocol::network::{CookieParam, SetCookiesParams, TimeSinceEpoch};
+use chromiumoxide::cdp::browser_protocol::network::{
+    CookieParam, SetCookiesParams, TimeSinceEpoch,
+};
 use chromiumoxide::cdp::browser_protocol::target::CreateBrowserContextParams;
 use chromiumoxide::page::Page;
 use futures::StreamExt;
@@ -16,16 +18,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::models::{
-    AriaSnapshot, NavigationResult, ScreenshotResult, ClickResult, FillResult,
-    SerializableCookie, LocalStorageState,
-};
 use super::aria::extract_aria_tree;
+use crate::models::{
+    AriaSnapshot, ClickResult, FillResult, LocalStorageState, NavigationResult, ScreenshotResult,
+    SerializableCookie,
+};
 
 /// A browser session with isolated context.
 pub struct BrowserSession {
     pub id: String,
-    pub context_id: Option<BrowserContextId>,  // None = default context
+    pub context_id: Option<BrowserContextId>, // None = default context
     pub page: Page,
 }
 
@@ -79,7 +81,8 @@ impl BrowserClient {
             builder = builder.with_head();
         }
 
-        let config = builder.build()
+        let config = builder
+            .build()
             .map_err(|e| anyhow::anyhow!("Failed to build browser config: {}", e))?;
 
         let (browser, mut handler) = Browser::launch(config)
@@ -87,18 +90,18 @@ impl BrowserClient {
             .context("Failed to launch browser")?;
 
         // Spawn handler task - just drain events, no logging overhead
-        tokio::spawn(async move {
-            while handler.next().await.is_some() {}
-        });
+        tokio::spawn(async move { while handler.next().await.is_some() {} });
 
         // Create default session with pre-warmed page
-        let default_page = browser.new_page("about:blank").await
+        let default_page = browser
+            .new_page("about:blank")
+            .await
             .context("Failed to create initial page")?;
 
         let default_session_id = "default".to_string();
         let default_session = BrowserSession {
             id: default_session_id.clone(),
-            context_id: None,  // Uses browser's default context
+            context_id: None, // Uses browser's default context
             page: default_page,
         };
 
@@ -122,18 +125,22 @@ impl BrowserClient {
         }
 
         // Create isolated browser context
-        let context_id = self.browser
+        let context_id = self
+            .browser
             .create_browser_context(CreateBrowserContextParams::default())
             .await
             .context("Failed to create browser context")?;
 
         // Create page in the new context
-        let page = self.browser
-            .new_page(chromiumoxide::cdp::browser_protocol::target::CreateTargetParams::builder()
-                .url("about:blank")
-                .browser_context_id(context_id.clone())
-                .build()
-                .map_err(|e| anyhow::anyhow!("Failed to build target params: {:?}", e))?)
+        let page = self
+            .browser
+            .new_page(
+                chromiumoxide::cdp::browser_protocol::target::CreateTargetParams::builder()
+                    .url("about:blank")
+                    .browser_context_id(context_id.clone())
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build target params: {:?}", e))?,
+            )
             .await
             .context("Failed to create page in context")?;
 
@@ -159,7 +166,9 @@ impl BrowserClient {
 
         if let Some(session) = sessions.remove(session_id) {
             if let Some(context_id) = session.context_id {
-                self.browser.dispose_browser_context(context_id).await
+                self.browser
+                    .dispose_browser_context(context_id)
+                    .await
                     .context("Failed to dispose browser context")?;
             }
             tracing::info!("Closed session: {}", session_id);
@@ -171,7 +180,10 @@ impl BrowserClient {
     /// List all active sessions.
     pub async fn list_sessions(&self) -> Vec<String> {
         let sessions = self.sessions.read().await;
-        sessions.keys().cloned().collect()
+        sessions
+            .values()
+            .map(|session| session.id.clone())
+            .collect()
     }
 
     /// Get page for a session (or default).
@@ -179,7 +191,8 @@ impl BrowserClient {
         let sessions = self.sessions.read().await;
         let sid = session_id.unwrap_or(&self.default_session_id);
 
-        sessions.get(sid)
+        sessions
+            .get(sid)
             .map(|s| s.page.clone())
             .ok_or_else(|| anyhow::anyhow!("Session not found: {}", sid))
     }
@@ -231,7 +244,11 @@ impl BrowserClient {
                 value: cookie.value,
                 domain: cookie.domain,
                 path: cookie.path,
-                expires: if cookie.session { None } else { Some(cookie.expires) },
+                expires: if cookie.session {
+                    None
+                } else {
+                    Some(cookie.expires)
+                },
                 secure: cookie.secure,
                 http_only: cookie.http_only,
                 same_site: cookie.same_site,
@@ -240,7 +257,11 @@ impl BrowserClient {
     }
 
     /// Restore cookies for a session.
-    pub async fn set_cookies(&self, cookies: &[SerializableCookie], session_id: Option<&str>) -> Result<()> {
+    pub async fn set_cookies(
+        &self,
+        cookies: &[SerializableCookie],
+        session_id: Option<&str>,
+    ) -> Result<()> {
         if cookies.is_empty() {
             return Ok(());
         }
@@ -287,7 +308,11 @@ impl BrowserClient {
     }
 
     /// Restore localStorage for a session.
-    pub async fn set_local_storage(&self, state: &LocalStorageState, session_id: Option<&str>) -> Result<()> {
+    pub async fn set_local_storage(
+        &self,
+        state: &LocalStorageState,
+        session_id: Option<&str>,
+    ) -> Result<()> {
         let page = self.get_page(session_id).await?;
         let payload = serde_json::to_string(&state.items)?;
         let script = format!(
@@ -306,14 +331,20 @@ impl BrowserClient {
     }
 
     /// Take a screenshot.
-    pub async fn screenshot(&self, path: Option<&str>, session_id: Option<&str>) -> Result<ScreenshotResult> {
+    pub async fn screenshot(
+        &self,
+        path: Option<&str>,
+        session_id: Option<&str>,
+    ) -> Result<ScreenshotResult> {
         let page = self.get_page(session_id).await?;
 
-        let screenshot_data = page.screenshot(
-            chromiumoxide::page::ScreenshotParams::builder()
-                .full_page(true)
-                .build()
-        ).await?;
+        let screenshot_data = page
+            .screenshot(
+                chromiumoxide::page::ScreenshotParams::builder()
+                    .full_page(true)
+                    .build(),
+            )
+            .await?;
 
         let (width, height) = (1920, 1080);
 
@@ -345,7 +376,9 @@ impl BrowserClient {
 
         let css_selector = resolve_selector(selector);
 
-        let element = page.find_element(&css_selector).await
+        let element = page
+            .find_element(&css_selector)
+            .await
             .context("Element not found")?;
 
         element.click().await?;
@@ -357,12 +390,19 @@ impl BrowserClient {
     }
 
     /// Fill an input field.
-    pub async fn fill(&self, selector: &str, value: &str, session_id: Option<&str>) -> Result<FillResult> {
+    pub async fn fill(
+        &self,
+        selector: &str,
+        value: &str,
+        session_id: Option<&str>,
+    ) -> Result<FillResult> {
         let page = self.get_page(session_id).await?;
 
         let css_selector = resolve_selector(selector);
 
-        let element = page.find_element(&css_selector).await
+        let element = page
+            .find_element(&css_selector)
+            .await
             .context("Element not found")?;
 
         element.click().await?;
@@ -378,19 +418,23 @@ impl BrowserClient {
     pub async fn press(&self, key: &str, session_id: Option<&str>) -> Result<()> {
         let page = self.get_page(session_id).await?;
 
-        page.execute(DispatchKeyEventParams::builder()
-            .r#type(DispatchKeyEventType::KeyDown)
-            .key(key)
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?)
-            .await?;
+        page.execute(
+            DispatchKeyEventParams::builder()
+                .r#type(DispatchKeyEventType::KeyDown)
+                .key(key)
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?,
+        )
+        .await?;
 
-        page.execute(DispatchKeyEventParams::builder()
-            .r#type(DispatchKeyEventType::KeyUp)
-            .key(key)
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?)
-            .await?;
+        page.execute(
+            DispatchKeyEventParams::builder()
+                .r#type(DispatchKeyEventType::KeyUp)
+                .key(key)
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?,
+        )
+        .await?;
 
         Ok(())
     }
@@ -400,7 +444,12 @@ impl BrowserClient {
     // =========================================================================
 
     /// Select an option from a dropdown.
-    pub async fn select(&self, selector: &str, value: &str, session_id: Option<&str>) -> Result<()> {
+    pub async fn select(
+        &self,
+        selector: &str,
+        value: &str,
+        session_id: Option<&str>,
+    ) -> Result<()> {
         let page = self.get_page(session_id).await?;
         let css_selector = resolve_selector(selector);
 
@@ -418,18 +467,23 @@ impl BrowserClient {
                 el.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 return true;
             }})()"#,
-            selector_json,
-            value_json
+            selector_json, value_json
         );
 
-        page.evaluate(script).await
+        page.evaluate(script)
+            .await
             .context("Failed to select option")?;
 
         Ok(())
     }
 
     /// Set checkbox/radio state.
-    pub async fn check(&self, selector: &str, checked: bool, session_id: Option<&str>) -> Result<()> {
+    pub async fn check(
+        &self,
+        selector: &str,
+        checked: bool,
+        session_id: Option<&str>,
+    ) -> Result<()> {
         let page = self.get_page(session_id).await?;
         let css_selector = resolve_selector(selector);
 
@@ -445,11 +499,11 @@ impl BrowserClient {
                 }}
                 return el.checked;
             }})()"#,
-            selector_json,
-            checked
+            selector_json, checked
         );
 
-        page.evaluate(script).await
+        page.evaluate(script)
+            .await
             .context("Failed to set checkbox state")?;
 
         Ok(())
@@ -460,7 +514,9 @@ impl BrowserClient {
         let page = self.get_page(session_id).await?;
         let css_selector = resolve_selector(selector);
 
-        let element = page.find_element(&css_selector).await
+        let element = page
+            .find_element(&css_selector)
+            .await
             .context("Element not found")?;
 
         element.hover().await?;
@@ -469,7 +525,13 @@ impl BrowserClient {
     }
 
     /// Scroll to element or by amount.
-    pub async fn scroll(&self, selector: Option<&str>, x: i32, y: i32, session_id: Option<&str>) -> Result<()> {
+    pub async fn scroll(
+        &self,
+        selector: Option<&str>,
+        x: i32,
+        y: i32,
+        session_id: Option<&str>,
+    ) -> Result<()> {
         let page = self.get_page(session_id).await?;
 
         let script = if let Some(sel) = selector {
@@ -493,7 +555,12 @@ impl BrowserClient {
     }
 
     /// Press a key with modifiers (Ctrl, Shift, Alt, Meta).
-    pub async fn press_combo(&self, modifiers: &[&str], key: &str, session_id: Option<&str>) -> Result<()> {
+    pub async fn press_combo(
+        &self,
+        modifiers: &[&str],
+        key: &str,
+        session_id: Option<&str>,
+    ) -> Result<()> {
         let page = self.get_page(session_id).await?;
 
         // Calculate modifier flags
@@ -508,28 +575,37 @@ impl BrowserClient {
         });
 
         // Send keyDown with modifiers
-        page.execute(DispatchKeyEventParams::builder()
-            .r#type(DispatchKeyEventType::KeyDown)
-            .key(key)
-            .modifiers(modifier_flags)
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?)
-            .await?;
+        page.execute(
+            DispatchKeyEventParams::builder()
+                .r#type(DispatchKeyEventType::KeyDown)
+                .key(key)
+                .modifiers(modifier_flags)
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?,
+        )
+        .await?;
 
         // Send keyUp
-        page.execute(DispatchKeyEventParams::builder()
-            .r#type(DispatchKeyEventType::KeyUp)
-            .key(key)
-            .modifiers(modifier_flags)
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?)
-            .await?;
+        page.execute(
+            DispatchKeyEventParams::builder()
+                .r#type(DispatchKeyEventType::KeyUp)
+                .key(key)
+                .modifiers(modifier_flags)
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to build key event: {:?}", e))?,
+        )
+        .await?;
 
         Ok(())
     }
 
     /// Upload a file to an input element.
-    pub async fn upload(&self, selector: &str, file_path: &str, session_id: Option<&str>) -> Result<()> {
+    pub async fn upload(
+        &self,
+        selector: &str,
+        file_path: &str,
+        session_id: Option<&str>,
+    ) -> Result<()> {
         let page = self.get_page(session_id).await?;
         let css_selector = resolve_selector(selector);
 
@@ -563,7 +639,8 @@ impl BrowserClient {
             selector_json
         );
 
-        page.evaluate(script).await
+        page.evaluate(script)
+            .await
             .context("Element validation failed")?;
 
         // Use CDP DOM.setFileInputFiles via element
@@ -571,23 +648,29 @@ impl BrowserClient {
         // Instead, we'll focus the element and use CDP Input domain
 
         // Get the element's node id and use DOM.setFileInputFiles
-        use chromiumoxide::cdp::browser_protocol::dom::{GetDocumentParams, QuerySelectorParams, SetFileInputFilesParams};
+        use chromiumoxide::cdp::browser_protocol::dom::{
+            GetDocumentParams, QuerySelectorParams, SetFileInputFilesParams,
+        };
 
         // Get document root
         let doc = page.execute(GetDocumentParams::default()).await?;
         let root_node_id = doc.root.node_id;
 
         // Query for the element
-        let query_result = page.execute(QuerySelectorParams::new(root_node_id, &css_selector)).await?;
+        let query_result = page
+            .execute(QuerySelectorParams::new(root_node_id, &css_selector))
+            .await?;
         let node_id = query_result.node_id;
 
         // Set the file
-        page.execute(SetFileInputFilesParams::builder()
-            .files(vec![absolute_path.to_string_lossy().to_string()])
-            .node_id(node_id)
-            .build()
-            .map_err(|e| anyhow::anyhow!("Failed to build SetFileInputFilesParams: {:?}", e))?)
-            .await?;
+        page.execute(
+            SetFileInputFilesParams::builder()
+                .files(vec![absolute_path.to_string_lossy().to_string()])
+                .node_id(node_id)
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to build SetFileInputFilesParams: {:?}", e))?,
+        )
+        .await?;
 
         tracing::debug!("Uploaded file {} to {}", file_path, selector);
 
@@ -601,13 +684,17 @@ impl BrowserClient {
     }
 
     /// Close the browser.
+    #[allow(dead_code)]
     pub async fn close(mut self) -> Result<()> {
         // Dispose all non-default sessions
         let sessions = self.sessions.read().await;
         for (id, session) in sessions.iter() {
             if id != &self.default_session_id {
                 if let Some(ref context_id) = session.context_id {
-                    let _ = self.browser.dispose_browser_context(context_id.clone()).await;
+                    let _ = self
+                        .browser
+                        .dispose_browser_context(context_id.clone())
+                        .await;
                 }
             }
         }
@@ -621,9 +708,15 @@ impl BrowserClient {
     fn find_chrome_executable() -> Result<PathBuf> {
         let (subdir_name, alt_subdir) = if cfg!(target_os = "macos") {
             if cfg!(target_arch = "aarch64") {
-                ("chrome-headless-shell-mac-arm64", "chrome-headless-shell-mac-x64")
+                (
+                    "chrome-headless-shell-mac-arm64",
+                    "chrome-headless-shell-mac-x64",
+                )
             } else {
-                ("chrome-headless-shell-mac-x64", "chrome-headless-shell-mac-arm64")
+                (
+                    "chrome-headless-shell-mac-x64",
+                    "chrome-headless-shell-mac-arm64",
+                )
             }
         } else {
             ("chrome-headless-shell-linux", "chrome-headless-shell-linux")
@@ -635,24 +728,24 @@ impl BrowserClient {
                 if let Ok(entries) = std::fs::read_dir(&playwright_cache) {
                     let mut headless_dirs: Vec<_> = entries
                         .filter_map(|e| e.ok())
-                        .filter(|e| e.file_name().to_string_lossy().starts_with("chromium_headless_shell"))
+                        .filter(|e| {
+                            e.file_name()
+                                .to_string_lossy()
+                                .starts_with("chromium_headless_shell")
+                        })
                         .collect();
 
                     headless_dirs.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
 
                     for dir in headless_dirs {
-                        let binary = dir.path()
-                            .join(subdir_name)
-                            .join("chrome-headless-shell");
+                        let binary = dir.path().join(subdir_name).join("chrome-headless-shell");
 
                         if binary.exists() {
                             tracing::info!("Using chrome-headless-shell at: {:?}", binary);
                             return Ok(binary);
                         }
 
-                        let alt_binary = dir.path()
-                            .join(alt_subdir)
-                            .join("chrome-headless-shell");
+                        let alt_binary = dir.path().join(alt_subdir).join("chrome-headless-shell");
 
                         if alt_binary.exists() {
                             tracing::info!("Using chrome-headless-shell at: {:?}", alt_binary);

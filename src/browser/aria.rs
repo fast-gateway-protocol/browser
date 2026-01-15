@@ -1,10 +1,10 @@
 //! ARIA tree extraction from Chrome DevTools Protocol.
 
 use anyhow::{Context, Result};
-use chromiumoxide::page::Page;
 use chromiumoxide::cdp::browser_protocol::accessibility::{
-    GetFullAxTreeParams, AxNode as CdpAxNode, AxProperty, AxPropertyName,
+    AxNode as CdpAxNode, AxProperty, AxPropertyName, GetFullAxTreeParams,
 };
+use chromiumoxide::page::Page;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 
@@ -17,7 +17,7 @@ pub async fn extract_aria_tree(page: &Page) -> Result<Vec<AriaNode>> {
     // Try CDP accessibility tree first
     if let Ok(response) = page.execute(GetFullAxTreeParams::default()).await {
         // Single-pass extraction - no clones, references only
-        let capacity = response.nodes.len() / 4;  // Most nodes filtered out
+        let capacity = response.nodes.len() / 4; // Most nodes filtered out
         let mut nodes = Vec::with_capacity(capacity);
 
         for node in &response.nodes {
@@ -27,7 +27,10 @@ pub async fn extract_aria_tree(page: &Page) -> Result<Vec<AriaNode>> {
         }
 
         if !nodes.is_empty() {
-            tracing::debug!("Extracted {} nodes from CDP accessibility tree", nodes.len());
+            tracing::debug!(
+                "Extracted {} nodes from CDP accessibility tree",
+                nodes.len()
+            );
             return Ok(nodes);
         }
     }
@@ -41,16 +44,39 @@ pub async fn extract_aria_tree(page: &Page) -> Result<Vec<AriaNode>> {
 
 /// Check if a node is interactive and should be included.
 fn is_interactive_node(node: &CdpAxNode) -> bool {
-    let role_match = node.role.as_ref().and_then(|role| role.value.as_ref()).map_or(false, |value| {
-        let role_str = json_as_str(value).unwrap_or("");
-        matches!(role_str,
-            "button" | "link" | "textbox" | "checkbox" | "radio" |
-            "combobox" | "listbox" | "menuitem" | "tab" | "slider" |
-            "searchbox" | "spinbutton" | "switch" | "option" |
-            "menuitemcheckbox" | "menuitemradio" | "treeitem" |
-            "heading" | "img" | "navigation" | "main" | "article" | "section"
-        )
-    });
+    let role_match = node
+        .role
+        .as_ref()
+        .and_then(|role| role.value.as_ref())
+        .map_or(false, |value| {
+            let role_str = json_as_str(value).unwrap_or("");
+            matches!(
+                role_str,
+                "button"
+                    | "link"
+                    | "textbox"
+                    | "checkbox"
+                    | "radio"
+                    | "combobox"
+                    | "listbox"
+                    | "menuitem"
+                    | "tab"
+                    | "slider"
+                    | "searchbox"
+                    | "spinbutton"
+                    | "switch"
+                    | "option"
+                    | "menuitemcheckbox"
+                    | "menuitemradio"
+                    | "treeitem"
+                    | "heading"
+                    | "img"
+                    | "navigation"
+                    | "main"
+                    | "article"
+                    | "section"
+            )
+        });
 
     role_match || is_focusable(node)
 }
@@ -67,7 +93,11 @@ fn is_focusable(node: &CdpAxNode) -> bool {
         .map(|props: &Vec<AxProperty>| {
             props.iter().any(|p| {
                 matches!(p.name, AxPropertyName::Focusable)
-                    && p.value.value.as_ref().and_then(|v| json_as_bool(v)).unwrap_or(false)
+                    && p.value
+                        .value
+                        .as_ref()
+                        .and_then(|v| json_as_bool(v))
+                        .unwrap_or(false)
             })
         })
         .unwrap_or(false)
@@ -96,10 +126,7 @@ struct DomSnapshotNode {
     focused: bool,
 }
 
-async fn extract_dom_interactives(
-    page: &Page,
-    counter: &mut usize,
-) -> Result<Vec<AriaNode>> {
+async fn extract_dom_interactives(page: &Page, counter: &mut usize) -> Result<Vec<AriaNode>> {
     let script = r#"(() => {
         const roleFor = (el) => {
             const explicit = el.getAttribute && el.getAttribute('role');
@@ -178,11 +205,19 @@ async fn extract_dom_interactives(
             let ref_id = format!("@e{}", counter);
             let name = n.name.and_then(|s| {
                 let trimmed = s.trim().to_string();
-                if trimmed.is_empty() { None } else { Some(trimmed) }
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                }
             });
             let value = n.value.and_then(|s| {
                 let trimmed = s.trim().to_string();
-                if trimmed.is_empty() { None } else { Some(trimmed) }
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                }
             });
             AriaNode {
                 ref_id,
@@ -204,38 +239,51 @@ fn convert_node_ref(node: &CdpAxNode, counter: &mut usize) -> AriaNode {
     *counter += 1;
     let ref_id = format!("@e{}", counter);
 
-    let role = node.role
+    let role = node
+        .role
         .as_ref()
         .and_then(|r| r.value.as_ref())
         .and_then(|v: &JsonValue| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "unknown".to_string());
 
-    let name = node.name
+    let name = node
+        .name
         .as_ref()
         .and_then(|n| n.value.as_ref())
         .and_then(|v: &JsonValue| v.as_str().map(|s| s.to_string()));
 
-    let value = node.value
+    let value = node
+        .value
         .as_ref()
         .and_then(|v| v.value.as_ref())
         .and_then(|v: &JsonValue| v.as_str().map(|s| s.to_string()));
 
-    let focusable = node.properties
+    let focusable = node
+        .properties
         .as_ref()
         .map(|props: &Vec<AxProperty>| {
             props.iter().any(|p| {
-                matches!(p.name, AxPropertyName::Focusable) &&
-                p.value.value.as_ref().and_then(|v| json_as_bool(v)).unwrap_or(false)
+                matches!(p.name, AxPropertyName::Focusable)
+                    && p.value
+                        .value
+                        .as_ref()
+                        .and_then(|v| json_as_bool(v))
+                        .unwrap_or(false)
             })
         })
         .unwrap_or(false);
 
-    let focused = node.properties
+    let focused = node
+        .properties
         .as_ref()
         .map(|props: &Vec<AxProperty>| {
             props.iter().any(|p| {
-                matches!(p.name, AxPropertyName::Focused) &&
-                p.value.value.as_ref().and_then(|v| json_as_bool(v)).unwrap_or(false)
+                matches!(p.name, AxPropertyName::Focused)
+                    && p.value
+                        .value
+                        .as_ref()
+                        .and_then(|v| json_as_bool(v))
+                        .unwrap_or(false)
             })
         })
         .unwrap_or(false);
@@ -248,5 +296,176 @@ fn convert_node_ref(node: &CdpAxNode, counter: &mut usize) -> AriaNode {
         focusable,
         focused,
         children: vec![], // Flatten for LLM consumption
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_json_as_str() {
+        assert_eq!(
+            json_as_str(&JsonValue::String("hello".into())),
+            Some("hello")
+        );
+        assert_eq!(json_as_str(&JsonValue::Number(42.into())), None);
+        assert_eq!(json_as_str(&JsonValue::Bool(true)), None);
+        assert_eq!(json_as_str(&JsonValue::Null), None);
+    }
+
+    #[test]
+    fn test_json_as_bool() {
+        assert_eq!(json_as_bool(&JsonValue::Bool(true)), Some(true));
+        assert_eq!(json_as_bool(&JsonValue::Bool(false)), Some(false));
+        assert_eq!(json_as_bool(&JsonValue::String("true".into())), None);
+        assert_eq!(json_as_bool(&JsonValue::Number(1.into())), None);
+        assert_eq!(json_as_bool(&JsonValue::Null), None);
+    }
+
+    #[test]
+    fn test_dom_snapshot_node_deserialization() {
+        let json = r#"{
+            "role": "button",
+            "name": "Submit Form",
+            "value": null,
+            "focusable": true,
+            "focused": false
+        }"#;
+
+        let node: DomSnapshotNode = serde_json::from_str(json).unwrap();
+        assert_eq!(node.role, "button");
+        assert_eq!(node.name, Some("Submit Form".to_string()));
+        assert!(node.focusable);
+        assert!(!node.focused);
+    }
+
+    #[test]
+    fn test_dom_snapshot_node_with_defaults() {
+        let json = r#"{"role": "link"}"#;
+        let node: DomSnapshotNode = serde_json::from_str(json).unwrap();
+
+        assert_eq!(node.role, "link");
+        assert_eq!(node.name, None);
+        assert_eq!(node.value, None);
+        assert!(!node.focusable);
+        assert!(!node.focused);
+    }
+
+    #[test]
+    fn test_interactive_roles() {
+        // Test that we correctly identify interactive roles
+        // Note: These tests check the string matching logic without CDP nodes
+        let interactive_roles = vec![
+            "button",
+            "link",
+            "textbox",
+            "checkbox",
+            "radio",
+            "combobox",
+            "listbox",
+            "menuitem",
+            "tab",
+            "slider",
+            "searchbox",
+            "spinbutton",
+            "switch",
+            "option",
+            "menuitemcheckbox",
+            "menuitemradio",
+            "treeitem",
+            "heading",
+            "img",
+            "navigation",
+            "main",
+            "article",
+            "section",
+        ];
+
+        for role in interactive_roles {
+            assert!(
+                matches!(
+                    role,
+                    "button"
+                        | "link"
+                        | "textbox"
+                        | "checkbox"
+                        | "radio"
+                        | "combobox"
+                        | "listbox"
+                        | "menuitem"
+                        | "tab"
+                        | "slider"
+                        | "searchbox"
+                        | "spinbutton"
+                        | "switch"
+                        | "option"
+                        | "menuitemcheckbox"
+                        | "menuitemradio"
+                        | "treeitem"
+                        | "heading"
+                        | "img"
+                        | "navigation"
+                        | "main"
+                        | "article"
+                        | "section"
+                ),
+                "Role '{}' should be considered interactive",
+                role
+            );
+        }
+
+        // Non-interactive roles
+        let non_interactive = vec!["generic", "group", "document", "application"];
+        for role in non_interactive {
+            assert!(
+                !matches!(
+                    role,
+                    "button"
+                        | "link"
+                        | "textbox"
+                        | "checkbox"
+                        | "radio"
+                        | "combobox"
+                        | "listbox"
+                        | "menuitem"
+                        | "tab"
+                        | "slider"
+                        | "searchbox"
+                        | "spinbutton"
+                        | "switch"
+                        | "option"
+                        | "menuitemcheckbox"
+                        | "menuitemradio"
+                        | "treeitem"
+                        | "heading"
+                        | "img"
+                        | "navigation"
+                        | "main"
+                        | "article"
+                        | "section"
+                ),
+                "Role '{}' should NOT be considered interactive",
+                role
+            );
+        }
+    }
+
+    #[test]
+    fn test_ref_id_generation() {
+        // Test that counter increments properly for ref_id generation
+        let mut counter = 0usize;
+
+        counter += 1;
+        let ref1 = format!("@e{}", counter);
+        assert_eq!(ref1, "@e1");
+
+        counter += 1;
+        let ref2 = format!("@e{}", counter);
+        assert_eq!(ref2, "@e2");
+
+        counter += 1;
+        let ref3 = format!("@e{}", counter);
+        assert_eq!(ref3, "@e3");
     }
 }

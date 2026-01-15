@@ -69,6 +69,7 @@ pub struct NavigationResult {
 }
 
 /// Browser session info.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionInfo {
     /// Session ID
@@ -145,4 +146,171 @@ pub struct FillResult {
     pub success: bool,
     /// Value that was filled
     pub value: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_aria_node_serialization() {
+        let node = AriaNode {
+            ref_id: "@e1".to_string(),
+            role: "button".to_string(),
+            name: Some("Submit".to_string()),
+            value: None,
+            focusable: true,
+            focused: false,
+            children: vec![],
+        };
+
+        let json = serde_json::to_string(&node).unwrap();
+        assert!(json.contains("@e1"));
+        assert!(json.contains("button"));
+        assert!(json.contains("Submit"));
+
+        let parsed: AriaNode = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.ref_id, "@e1");
+        assert_eq!(parsed.role, "button");
+        assert_eq!(parsed.name, Some("Submit".to_string()));
+    }
+
+    #[test]
+    fn test_aria_node_deserialization_with_defaults() {
+        let json = r#"{"ref_id": "@e5", "role": "link"}"#;
+        let node: AriaNode = serde_json::from_str(json).unwrap();
+
+        assert_eq!(node.ref_id, "@e5");
+        assert_eq!(node.role, "link");
+        assert_eq!(node.name, None);
+        assert_eq!(node.value, None);
+        assert!(!node.focusable);
+        assert!(!node.focused);
+        assert!(node.children.is_empty());
+    }
+
+    #[test]
+    fn test_navigation_result_serialization() {
+        let result = NavigationResult {
+            url: "https://example.com/page".to_string(),
+            title: "Example Page".to_string(),
+            status: Some(200),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: NavigationResult = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.url, "https://example.com/page");
+        assert_eq!(parsed.title, "Example Page");
+        assert_eq!(parsed.status, Some(200));
+    }
+
+    #[test]
+    fn test_screenshot_result_with_path() {
+        let result = ScreenshotResult {
+            data: None,
+            path: Some("/tmp/screenshot.png".to_string()),
+            width: 1920,
+            height: 1080,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("/tmp/screenshot.png"));
+        assert!(json.contains("1920"));
+        assert!(json.contains("1080"));
+    }
+
+    #[test]
+    fn test_screenshot_result_with_base64() {
+        let result = ScreenshotResult {
+            data: Some("iVBORw0KGgo...".to_string()),
+            path: None,
+            width: 800,
+            height: 600,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: ScreenshotResult = serde_json::from_str(&json).unwrap();
+
+        assert!(parsed.data.is_some());
+        assert!(parsed.path.is_none());
+    }
+
+    #[test]
+    fn test_session_info() {
+        let session = SessionInfo {
+            id: "session-abc".to_string(),
+            url: Some("https://example.com".to_string()),
+            active: true,
+        };
+
+        let json = serde_json::to_string(&session).unwrap();
+        let parsed: SessionInfo = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.id, "session-abc");
+        assert!(parsed.active);
+    }
+
+    #[test]
+    fn test_auth_state_serialization() {
+        let state = AuthState {
+            cookies: vec![SerializableCookie {
+                name: "session".to_string(),
+                value: "abc123".to_string(),
+                domain: ".example.com".to_string(),
+                path: "/".to_string(),
+                expires: Some(1700000000.0),
+                secure: true,
+                http_only: true,
+                same_site: None,
+            }],
+            local_storage: LocalStorageState {
+                origin: "https://example.com".to_string(),
+                items: {
+                    let mut map = HashMap::new();
+                    map.insert("token".to_string(), "xyz".to_string());
+                    map
+                },
+            },
+            saved_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let json = serde_json::to_string(&state).unwrap();
+        let parsed: AuthState = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.cookies.len(), 1);
+        assert_eq!(parsed.cookies[0].name, "session");
+        assert_eq!(
+            parsed.local_storage.items.get("token"),
+            Some(&"xyz".to_string())
+        );
+    }
+
+    #[test]
+    fn test_click_result() {
+        let result = ClickResult {
+            success: true,
+            element: Some("button#submit".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: ClickResult = serde_json::from_str(&json).unwrap();
+
+        assert!(parsed.success);
+        assert_eq!(parsed.element, Some("button#submit".to_string()));
+    }
+
+    #[test]
+    fn test_fill_result() {
+        let result = FillResult {
+            success: true,
+            value: "test@example.com".to_string(),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: FillResult = serde_json::from_str(&json).unwrap();
+
+        assert!(parsed.success);
+        assert_eq!(parsed.value, "test@example.com");
+    }
 }

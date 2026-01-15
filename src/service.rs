@@ -5,8 +5,8 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use fgp_daemon::FgpService;
 use fgp_daemon::service::MethodInfo;
+use fgp_daemon::FgpService;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -20,7 +20,7 @@ use crate::models::*;
 /// Browser automation service.
 pub struct BrowserService {
     runtime: Runtime,
-    client: Arc<RwLock<Option<BrowserClient>>>,
+    client: Arc<RwLock<Option<Arc<BrowserClient>>>>,
     user_data_dir: PathBuf,
     auth_dir: PathBuf,
     headless: bool,
@@ -54,7 +54,7 @@ impl BrowserService {
 
         Ok(Self {
             runtime,
-            client: Arc::new(RwLock::new(Some(client))),
+            client: Arc::new(RwLock::new(Some(Arc::new(client)))),
             user_data_dir,
             auth_dir,
             headless,
@@ -66,14 +66,37 @@ impl BrowserService {
 
     /// Extract session_id from params (optional).
     fn get_session_id(params: &HashMap<String, Value>) -> Option<String> {
-        params.get("session_id")
+        params
+            .get("session_id")
             .or_else(|| params.get("session"))
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
     }
 
+    async fn get_or_init_client(
+        client: &Arc<RwLock<Option<Arc<BrowserClient>>>>,
+        user_data_dir: &PathBuf,
+        headless: bool,
+    ) -> Result<Arc<BrowserClient>> {
+        if let Some(existing) = client.read().await.as_ref() {
+            return Ok(Arc::clone(existing));
+        }
+
+        let mut client_lock = client.write().await;
+        if client_lock.is_none() {
+            let new_client = BrowserClient::new(user_data_dir.clone(), headless).await?;
+            *client_lock = Some(Arc::new(new_client));
+        }
+
+        client_lock
+            .as_ref()
+            .map(Arc::clone)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get browser client"))
+    }
+
     fn handle_open(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let url = params.get("url")
+        let url = params
+            .get("url")
             .and_then(|v| v.as_str())
             .context("Missing 'url' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -83,18 +106,9 @@ impl BrowserService {
         let headless = self.headless;
 
         let result = self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.navigate(url, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client.navigate(url, session_id.as_deref()).await
         })?;
 
         Ok(serde_json::to_value(result)?)
@@ -107,18 +121,9 @@ impl BrowserService {
         let headless = self.headless;
 
         let result = self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.snapshot(session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client.snapshot(session_id.as_deref()).await
         })?;
 
         Ok(serde_json::to_value(result)?)
@@ -133,25 +138,17 @@ impl BrowserService {
         let headless = self.headless;
 
         let result = self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.screenshot(path, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client.screenshot(path, session_id.as_deref()).await
         })?;
 
         Ok(serde_json::to_value(result)?)
     }
 
     fn handle_click(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let selector = params.get("selector")
+        let selector = params
+            .get("selector")
             .and_then(|v| v.as_str())
             .context("Missing 'selector' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -162,28 +159,21 @@ impl BrowserService {
         let selector = selector.to_string();
 
         let result = self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.click(&selector, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client.click(&selector, session_id.as_deref()).await
         })?;
 
         Ok(serde_json::to_value(result)?)
     }
 
     fn handle_fill(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let selector = params.get("selector")
+        let selector = params
+            .get("selector")
             .and_then(|v| v.as_str())
             .context("Missing 'selector' parameter")?;
-        let value = params.get("value")
+        let value = params
+            .get("value")
             .and_then(|v| v.as_str())
             .context("Missing 'value' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -195,25 +185,19 @@ impl BrowserService {
         let value = value.to_string();
 
         let result = self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.fill(&selector, &value, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client
+                .fill(&selector, &value, session_id.as_deref())
+                .await
         })?;
 
         Ok(serde_json::to_value(result)?)
     }
 
     fn handle_press(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let key = params.get("key")
+        let key = params
+            .get("key")
             .and_then(|v| v.as_str())
             .context("Missing 'key' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -224,25 +208,17 @@ impl BrowserService {
         let key = key.to_string();
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.press(&key, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client.press(&key, session_id.as_deref()).await
         })?;
 
         Ok(serde_json::json!({"success": true}))
     }
 
     fn handle_state_save(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let name = params.get("name")
+        let name = params
+            .get("name")
             .and_then(|v| v.as_str())
             .context("Missing 'name' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -253,24 +229,17 @@ impl BrowserService {
         let headless = self.headless;
 
         let state = self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                let cookies = browser_client.get_cookies(session_id.as_deref()).await?;
-                let local_storage = browser_client.get_local_storage(session_id.as_deref()).await?;
-                Ok(AuthState {
-                    cookies,
-                    local_storage,
-                    saved_at: Utc::now().to_rfc3339(),
-                })
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            let cookies = browser_client.get_cookies(session_id.as_deref()).await?;
+            let local_storage = browser_client
+                .get_local_storage(session_id.as_deref())
+                .await?;
+            Ok::<AuthState, anyhow::Error>(AuthState {
+                cookies,
+                local_storage,
+                saved_at: Utc::now().to_rfc3339(),
+            })
         })?;
 
         let serialized = serde_json::to_vec_pretty(&state)?;
@@ -283,7 +252,8 @@ impl BrowserService {
     }
 
     fn handle_state_load(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let name = params.get("name")
+        let name = params
+            .get("name")
             .and_then(|v| v.as_str())
             .context("Missing 'name' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -302,20 +272,15 @@ impl BrowserService {
         let headless = self.headless;
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.set_cookies(&state.cookies, session_id.as_deref()).await?;
-                browser_client.set_local_storage(&state.local_storage, session_id.as_deref()).await?;
-                Ok(())
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client
+                .set_cookies(&state.cookies, session_id.as_deref())
+                .await?;
+            browser_client
+                .set_local_storage(&state.local_storage, session_id.as_deref())
+                .await?;
+            Ok::<(), anyhow::Error>(())
         })?;
 
         Ok(serde_json::json!({
@@ -386,7 +351,8 @@ impl BrowserService {
     // =========================================================================
 
     fn handle_session_new(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let session_id = params.get("id")
+        let session_id = params
+            .get("id")
             .or_else(|| params.get("session_id"))
             .and_then(|v| v.as_str())
             .context("Missing 'id' parameter")?;
@@ -396,18 +362,9 @@ impl BrowserService {
         let headless = self.headless;
 
         let id = self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.create_session(session_id).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client.create_session(session_id).await
         })?;
 
         Ok(serde_json::json!({
@@ -434,7 +391,8 @@ impl BrowserService {
     }
 
     fn handle_session_close(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let session_id = params.get("id")
+        let session_id = params
+            .get("id")
             .or_else(|| params.get("session_id"))
             .and_then(|v| v.as_str())
             .context("Missing 'id' parameter")?;
@@ -461,10 +419,12 @@ impl BrowserService {
     // =========================================================================
 
     fn handle_select(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let selector = params.get("selector")
+        let selector = params
+            .get("selector")
             .and_then(|v| v.as_str())
             .context("Missing 'selector' parameter")?;
-        let value = params.get("value")
+        let value = params
+            .get("value")
             .and_then(|v| v.as_str())
             .context("Missing 'value' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -476,18 +436,11 @@ impl BrowserService {
         let value = value.to_string();
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.select(&selector, &value, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client
+                .select(&selector, &value, session_id.as_deref())
+                .await
         })?;
 
         Ok(serde_json::json!({
@@ -498,12 +451,14 @@ impl BrowserService {
     }
 
     fn handle_check(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let selector = params.get("selector")
+        let selector = params
+            .get("selector")
             .and_then(|v| v.as_str())
             .context("Missing 'selector' parameter")?;
-        let checked = params.get("checked")
+        let checked = params
+            .get("checked")
             .and_then(|v| v.as_bool())
-            .unwrap_or(true);  // Default to checking
+            .unwrap_or(true); // Default to checking
         let session_id = Self::get_session_id(&params);
 
         let client = self.client.clone();
@@ -512,18 +467,11 @@ impl BrowserService {
         let selector = selector.to_string();
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.check(&selector, checked, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client
+                .check(&selector, checked, session_id.as_deref())
+                .await
         })?;
 
         Ok(serde_json::json!({
@@ -534,7 +482,8 @@ impl BrowserService {
     }
 
     fn handle_hover(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let selector = params.get("selector")
+        let selector = params
+            .get("selector")
             .and_then(|v| v.as_str())
             .context("Missing 'selector' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -545,18 +494,9 @@ impl BrowserService {
         let selector = selector.to_string();
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.hover(&selector, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client.hover(&selector, session_id.as_deref()).await
         })?;
 
         Ok(serde_json::json!({
@@ -577,18 +517,11 @@ impl BrowserService {
         let selector = selector.map(|s| s.to_string());
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.scroll(selector.as_deref(), x, y, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client
+                .scroll(selector.as_deref(), x, y, session_id.as_deref())
+                .await
         })?;
 
         Ok(serde_json::json!({
@@ -599,12 +532,18 @@ impl BrowserService {
     }
 
     fn handle_press_combo(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let key = params.get("key")
+        let key = params
+            .get("key")
             .and_then(|v| v.as_str())
             .context("Missing 'key' parameter")?;
-        let modifiers: Vec<String> = params.get("modifiers")
+        let modifiers: Vec<String> = params
+            .get("modifiers")
             .and_then(|v| v.as_array())
-            .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
             .unwrap_or_default();
         let session_id = Self::get_session_id(&params);
 
@@ -614,19 +553,12 @@ impl BrowserService {
         let key = key.to_string();
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                let mod_refs: Vec<&str> = modifiers.iter().map(|s| s.as_str()).collect();
-                browser_client.press_combo(&mod_refs, &key, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            let mod_refs: Vec<&str> = modifiers.iter().map(|s| s.as_str()).collect();
+            browser_client
+                .press_combo(&mod_refs, &key, session_id.as_deref())
+                .await
         })?;
 
         Ok(serde_json::json!({
@@ -637,10 +569,12 @@ impl BrowserService {
     }
 
     fn handle_upload(&self, params: HashMap<String, Value>) -> Result<Value> {
-        let selector = params.get("selector")
+        let selector = params
+            .get("selector")
             .and_then(|v| v.as_str())
             .context("Missing 'selector' parameter")?;
-        let path = params.get("path")
+        let path = params
+            .get("path")
             .and_then(|v| v.as_str())
             .context("Missing 'path' parameter")?;
         let session_id = Self::get_session_id(&params);
@@ -652,18 +586,11 @@ impl BrowserService {
         let path = path.to_string();
 
         self.runtime.block_on(async {
-            let mut client_lock = client.write().await;
-
-            if client_lock.is_none() {
-                let new_client = BrowserClient::new(user_data_dir, headless).await?;
-                *client_lock = Some(new_client);
-            }
-
-            if let Some(ref browser_client) = *client_lock {
-                browser_client.upload(&selector, &path, session_id.as_deref()).await
-            } else {
-                Err(anyhow::anyhow!("Failed to get browser client"))
-            }
+            let browser_client =
+                Self::get_or_init_client(&client, &user_data_dir, headless).await?;
+            browser_client
+                .upload(&selector, &path, session_id.as_deref())
+                .await
         })?;
 
         Ok(serde_json::json!({
@@ -795,7 +722,8 @@ impl FgpService for BrowserService {
             // Session management
             MethodInfo {
                 name: "browser.session.new".to_string(),
-                description: "Create a new isolated session with its own browser context".to_string(),
+                description: "Create a new isolated session with its own browser context"
+                    .to_string(),
                 params: vec![],
             },
             MethodInfo {
@@ -809,5 +737,58 @@ impl FgpService for BrowserService {
                 params: vec![],
             },
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_get_session_id_with_session_id() {
+        let mut params = HashMap::new();
+        params.insert("session_id".to_string(), json!("test-session-123"));
+        params.insert("url".to_string(), json!("https://example.com"));
+
+        let session_id = BrowserService::get_session_id(&params);
+        assert_eq!(session_id, Some("test-session-123".to_string()));
+    }
+
+    #[test]
+    fn test_get_session_id_with_session_alias() {
+        let mut params = HashMap::new();
+        params.insert("session".to_string(), json!("my-session"));
+
+        let session_id = BrowserService::get_session_id(&params);
+        assert_eq!(session_id, Some("my-session".to_string()));
+    }
+
+    #[test]
+    fn test_get_session_id_missing() {
+        let mut params = HashMap::new();
+        params.insert("url".to_string(), json!("https://example.com"));
+
+        let session_id = BrowserService::get_session_id(&params);
+        assert_eq!(session_id, None);
+    }
+
+    #[test]
+    fn test_get_session_id_prefers_session_id_over_session() {
+        let mut params = HashMap::new();
+        params.insert("session_id".to_string(), json!("preferred"));
+        params.insert("session".to_string(), json!("fallback"));
+
+        let session_id = BrowserService::get_session_id(&params);
+        assert_eq!(session_id, Some("preferred".to_string()));
+    }
+
+    #[test]
+    fn test_get_session_id_ignores_non_string() {
+        let mut params = HashMap::new();
+        params.insert("session_id".to_string(), json!(123));
+
+        let session_id = BrowserService::get_session_id(&params);
+        assert_eq!(session_id, None);
     }
 }

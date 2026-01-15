@@ -10,6 +10,7 @@ use fgp_daemon::{cleanup_socket, FgpServer};
 use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::process::Command;
 
 use crate::service::BrowserService;
 
@@ -276,7 +277,11 @@ enum SessionAction {
 /// Build params with optional session_id
 fn with_session(mut params: serde_json::Value, session: Option<String>) -> serde_json::Value {
     if let Some(sid) = session {
-        params.as_object_mut().unwrap().insert("session_id".to_string(), serde_json::Value::String(sid));
+        if let Some(obj) = params.as_object_mut() {
+            obj.insert("session_id".to_string(), serde_json::Value::String(sid));
+        } else {
+            params = serde_json::json!({ "session_id": sid });
+        }
     }
     params
 }
@@ -285,12 +290,19 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Start { socket, foreground, headed, channel: _ } => {
-            cmd_start(socket, foreground, !headed)
-        }
+        Commands::Start {
+            socket,
+            foreground,
+            headed,
+            channel: _,
+        } => cmd_start(socket, foreground, !headed),
         Commands::Stop { socket } => cmd_stop(socket),
         Commands::Status { socket } => cmd_status(socket),
-        Commands::Open { url, socket, session } => {
+        Commands::Open {
+            url,
+            socket,
+            session,
+        } => {
             let params = with_session(serde_json::json!({"url": url}), session);
             cmd_call_daemon(&socket, "browser.open", params, cli.json)
         }
@@ -298,19 +310,39 @@ fn main() -> Result<()> {
             let params = with_session(serde_json::json!({}), session);
             cmd_call_daemon(&socket, "browser.snapshot", params, cli.json)
         }
-        Commands::Click { selector, socket, session } => {
+        Commands::Click {
+            selector,
+            socket,
+            session,
+        } => {
             let params = with_session(serde_json::json!({"selector": selector}), session);
             cmd_call_daemon(&socket, "browser.click", params, cli.json)
         }
-        Commands::Fill { selector, value, socket, session } => {
-            let params = with_session(serde_json::json!({"selector": selector, "value": value}), session);
+        Commands::Fill {
+            selector,
+            value,
+            socket,
+            session,
+        } => {
+            let params = with_session(
+                serde_json::json!({"selector": selector, "value": value}),
+                session,
+            );
             cmd_call_daemon(&socket, "browser.fill", params, cli.json)
         }
-        Commands::Press { key, socket, session } => {
+        Commands::Press {
+            key,
+            socket,
+            session,
+        } => {
             let params = with_session(serde_json::json!({"key": key}), session);
             cmd_call_daemon(&socket, "browser.press", params, cli.json)
         }
-        Commands::Screenshot { path, socket, session } => {
+        Commands::Screenshot {
+            path,
+            socket,
+            session,
+        } => {
             let base = match path {
                 Some(p) => serde_json::json!({"path": p}),
                 None => serde_json::json!({}),
@@ -318,57 +350,121 @@ fn main() -> Result<()> {
             let params = with_session(base, session);
             cmd_call_daemon(&socket, "browser.screenshot", params, cli.json)
         }
-        Commands::Select { selector, value, socket, session } => {
-            let params = with_session(serde_json::json!({"selector": selector, "value": value}), session);
+        Commands::Select {
+            selector,
+            value,
+            socket,
+            session,
+        } => {
+            let params = with_session(
+                serde_json::json!({"selector": selector, "value": value}),
+                session,
+            );
             cmd_call_daemon(&socket, "browser.select", params, cli.json)
         }
-        Commands::Check { selector, checked, socket, session } => {
-            let params = with_session(serde_json::json!({"selector": selector, "checked": checked}), session);
+        Commands::Check {
+            selector,
+            checked,
+            socket,
+            session,
+        } => {
+            let params = with_session(
+                serde_json::json!({"selector": selector, "checked": checked}),
+                session,
+            );
             cmd_call_daemon(&socket, "browser.check", params, cli.json)
         }
-        Commands::Hover { selector, socket, session } => {
+        Commands::Hover {
+            selector,
+            socket,
+            session,
+        } => {
             let params = with_session(serde_json::json!({"selector": selector}), session);
             cmd_call_daemon(&socket, "browser.hover", params, cli.json)
         }
-        Commands::Scroll { selector, x, y, socket, session } => {
+        Commands::Scroll {
+            selector,
+            x,
+            y,
+            socket,
+            session,
+        } => {
             let mut base = serde_json::json!({"x": x, "y": y});
             if let Some(sel) = selector {
-                base.as_object_mut().unwrap().insert("selector".to_string(), serde_json::Value::String(sel));
+                base.as_object_mut()
+                    .unwrap()
+                    .insert("selector".to_string(), serde_json::Value::String(sel));
             }
             let params = with_session(base, session);
             cmd_call_daemon(&socket, "browser.scroll", params, cli.json)
         }
-        Commands::PressCombo { key, modifiers, socket, session } => {
-            let params = with_session(serde_json::json!({"key": key, "modifiers": modifiers}), session);
+        Commands::PressCombo {
+            key,
+            modifiers,
+            socket,
+            session,
+        } => {
+            let params = with_session(
+                serde_json::json!({"key": key, "modifiers": modifiers}),
+                session,
+            );
             cmd_call_daemon(&socket, "browser.press_combo", params, cli.json)
         }
-        Commands::Upload { selector, path, socket, session } => {
-            let params = with_session(serde_json::json!({"selector": selector, "path": path}), session);
+        Commands::Upload {
+            selector,
+            path,
+            socket,
+            session,
+        } => {
+            let params = with_session(
+                serde_json::json!({"selector": selector, "path": path}),
+                session,
+            );
             cmd_call_daemon(&socket, "browser.upload", params, cli.json)
         }
         Commands::State { action } => match action {
-            StateAction::Save { name, socket, session } => {
+            StateAction::Save {
+                name,
+                socket,
+                session,
+            } => {
                 let params = with_session(serde_json::json!({"name": name}), session);
                 cmd_call_daemon(&socket, "browser.state.save", params, cli.json)
             }
-            StateAction::Load { name, socket, session } => {
+            StateAction::Load {
+                name,
+                socket,
+                session,
+            } => {
                 let params = with_session(serde_json::json!({"name": name}), session);
                 cmd_call_daemon(&socket, "browser.state.load", params, cli.json)
             }
-            StateAction::List { socket } => {
-                cmd_call_daemon(&socket, "browser.state.list", serde_json::json!({}), cli.json)
-            }
+            StateAction::List { socket } => cmd_call_daemon(
+                &socket,
+                "browser.state.list",
+                serde_json::json!({}),
+                cli.json,
+            ),
         },
         Commands::Session { action } => match action {
-            SessionAction::New { id, socket } => {
-                cmd_call_daemon(&socket, "browser.session.new", serde_json::json!({"id": id}), cli.json)
-            }
-            SessionAction::List { socket } => {
-                cmd_call_daemon(&socket, "browser.session.list", serde_json::json!({}), cli.json)
-            }
-            SessionAction::Close { id, socket } => {
-                cmd_call_daemon(&socket, "browser.session.close", serde_json::json!({"id": id}), cli.json)
-            }
+            SessionAction::New { id, socket } => cmd_call_daemon(
+                &socket,
+                "browser.session.new",
+                serde_json::json!({"id": id}),
+                cli.json,
+            ),
+            SessionAction::List { socket } => cmd_call_daemon(
+                &socket,
+                "browser.session.list",
+                serde_json::json!({}),
+                cli.json,
+            ),
+            SessionAction::Close { id, socket } => cmd_call_daemon(
+                &socket,
+                "browser.session.close",
+                serde_json::json!({"id": id}),
+                cli.json,
+            ),
         },
     }
 }
@@ -392,10 +488,9 @@ fn cmd_start(socket: String, foreground: bool, headless: bool) -> Result<()> {
             .with_env_filter("fgp_browser=debug,fgp_daemon=debug,chromiumoxide=warn")
             .init();
 
-        let service = BrowserService::new(headless)
-            .context("Failed to create BrowserService")?;
-        let server = FgpServer::new(service, &socket_path)
-            .context("Failed to create FGP server")?;
+        let service = BrowserService::new(headless).context("Failed to create BrowserService")?;
+        let server =
+            FgpServer::new(service, &socket_path).context("Failed to create FGP server")?;
         server.serve().context("Server error")?;
     } else {
         use daemonize::Daemonize;
@@ -410,10 +505,10 @@ fn cmd_start(socket: String, foreground: bool, headless: bool) -> Result<()> {
                     .with_env_filter("fgp_browser=debug,fgp_daemon=debug,chromiumoxide=warn")
                     .init();
 
-                let service = BrowserService::new(headless)
-                    .context("Failed to create BrowserService")?;
-                let server = FgpServer::new(service, &socket_path)
-                    .context("Failed to create FGP server")?;
+                let service =
+                    BrowserService::new(headless).context("Failed to create BrowserService")?;
+                let server =
+                    FgpServer::new(service, &socket_path).context("Failed to create FGP server")?;
                 server.serve().context("Server error")?;
             }
             Err(e) => {
@@ -430,9 +525,24 @@ fn cmd_stop(socket: String) -> Result<()> {
     let socket_path = shellexpand::tilde(&socket).to_string();
     let pid_file = format!("{}.pid", socket_path);
 
+    if Path::new(&socket_path).exists() {
+        if let Ok(client) = fgp_daemon::FgpClient::new(&socket_path) {
+            if let Ok(response) = client.stop() {
+                if response.ok {
+                    println!("Daemon stopped.");
+                    return Ok(());
+                }
+            }
+        }
+    }
+
     let pid_str = std::fs::read_to_string(&pid_file)
         .context("Failed to read PID file - daemon may not be running")?;
     let pid: i32 = pid_str.trim().parse().context("Invalid PID in file")?;
+
+    if !pid_matches_process(pid, "browser-gateway") {
+        anyhow::bail!("Refusing to stop PID {}: unexpected process", pid);
+    }
 
     println!("Stopping browser-gateway daemon (PID: {})...", pid);
 
@@ -447,6 +557,20 @@ fn cmd_stop(socket: String) -> Result<()> {
 
     println!("Daemon stopped.");
     Ok(())
+}
+
+fn pid_matches_process(pid: i32, expected_name: &str) -> bool {
+    let output = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "comm="])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let command = String::from_utf8_lossy(&output.stdout);
+            command.trim().contains(expected_name)
+        }
+        _ => false,
+    }
 }
 
 fn cmd_status(socket: String) -> Result<()> {
@@ -481,7 +605,12 @@ fn cmd_status(socket: String) -> Result<()> {
     Ok(())
 }
 
-fn cmd_call_daemon(socket: &str, method: &str, params: serde_json::Value, json_output: bool) -> Result<()> {
+fn cmd_call_daemon(
+    socket: &str,
+    method: &str,
+    params: serde_json::Value,
+    json_output: bool,
+) -> Result<()> {
     let socket_path = shellexpand::tilde(socket).to_string();
 
     let mut stream = UnixStream::connect(&socket_path)

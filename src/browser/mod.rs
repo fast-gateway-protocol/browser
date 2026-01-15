@@ -1,6 +1,6 @@
 //! Browser automation module.
 
-mod client;
 mod aria;
+mod client;
 
-pub use client::{BrowserClient, BrowserSession};
+pub use client::BrowserClient;

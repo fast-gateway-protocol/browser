@@ -1,0 +1,26 @@
+[
+  {
+    "session_id": "57ed67ac-2bd7-4367-9402-225a5ad61c75",
+    "transcript_path": "/Users/wolfgangschoenberger/.claude/projects/-Users-wolfgangschoenberger-Projects-fgp/57ed67ac-2bd7-4367-9402-225a5ad61c75.jsonl",
+    "cwd": "/Users/wolfgangschoenberger/Projects/fgp/browser",
+    "permission_mode": "bypassPermissions",
+    "hook_event_name": "UserPromptSubmit",
+    "prompt": "continue with calendar daemon implementation"
+  },
+  {
+    "session_id": "57ed67ac-2bd7-4367-9402-225a5ad61c75",
+    "transcript_path": "/Users/wolfgangschoenberger/.claude/projects/-Users-wolfgangschoenberger-Projects-fgp/57ed67ac-2bd7-4367-9402-225a5ad61c75.jsonl",
+    "cwd": "/Users/wolfgangschoenberger/Projects/fgp/browser",
+    "permission_mode": "bypassPermissions",
+    "hook_event_name": "UserPromptSubmit",
+    "prompt": "what should I work on next"
+  },
+  {
+    "session_id": "57ed67ac-2bd7-4367-9402-225a5ad61c75",
+    "transcript_path": "/Users/wolfgangschoenberger/.claude/projects/-Users-wolfgangschoenberger-Projects-fgp/57ed67ac-2bd7-4367-9402-225a5ad61c75.jsonl",
+    "cwd": "/Users/wolfgangschoenberger/Projects/fgp/browser",
+    "permission_mode": "bypassPermissions",
+    "hook_event_name": "UserPromptSubmit",
+    "prompt": "t1"
+  }
+]

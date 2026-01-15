@@ -55,7 +55,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Step 2: Get the page snapshot (ARIA tree)
     println!("2. Getting page snapshot...");
     let response = call("browser.snapshot", "{}")?;
-    println!("   Snapshot received (truncated): {}...\n", &response[..response.len().min(200)]);
+    println!(
+        "   Snapshot received (truncated): {}...\n",
+        &response[..response.len().min(200)]
+    );
 
     // Step 3: Check health
     println!("3. Checking daemon health...");
