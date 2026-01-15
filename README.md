@@ -24,7 +24,7 @@ Multi-step workflows show even bigger gains:
 
 ```bash
 # Clone and build
-git clone https://github.com/wolfiesch/fgp-browser.git
+git clone https://github.com/fast-gateway-protocol/browser.git
 cd fgp-browser
 cargo build --release
 
@@ -205,7 +205,7 @@ RUST_LOG=debug ./target/release/browser-gateway start
 ## Dependencies
 
 - [chromiumoxide](https://github.com/nicoulaj/chromiumoxide) - Chrome DevTools Protocol
-- [fgp-daemon](https://github.com/wolfiesch/fgp-daemon) - FGP server SDK
+- [daemon](https://github.com/fast-gateway-protocol/daemon) - FGP server SDK
 - [tokio](https://tokio.rs/) - Async runtime
 - [clap](https://clap.rs/) - CLI parsing
 
@@ -215,5 +215,5 @@ MIT
 
 ## Related
 
-- [fgp-daemon](https://github.com/wolfiesch/fgp-daemon) - Core FGP SDK for building daemons
+- [daemon](https://github.com/fast-gateway-protocol/daemon) - Core FGP SDK for building daemons
 - [FGP Protocol Spec](../protocol/FGP-PROTOCOL.md) - Protocol documentation
