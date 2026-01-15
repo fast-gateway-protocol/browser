@@ -2,11 +2,17 @@
 //!
 //! Supports session-based browser automation for parallel requests.
 //! Each session has isolated context (cookies, localStorage, cache).
+//!
+//! # CHANGELOG (recent first, max 5 entries)
+//! 01/15/2026 - Added rich JSON Schema definitions for all methods (Claude)
+//! 01/14/2026 - Initial implementation (Claude)
 
 use anyhow::{Context, Result};
 use chrono::Utc;
+use fgp_daemon::schema::SchemaBuilder;
 use fgp_daemon::service::MethodInfo;
 use fgp_daemon::FgpService;
+use serde_json::json;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -640,38 +646,477 @@ impl FgpService for BrowserService {
     }
 
     fn method_list(&self) -> Vec<MethodInfo> {
+        // Common session parameter schema
+        let session_param = || {
+            SchemaBuilder::string()
+                .description("Session ID for isolated browser context (optional)")
+        };
+
         vec![
-            // Navigation and state
-            MethodInfo::new("browser.open", "Navigate to a URL"),
-            MethodInfo::new("browser.snapshot", "Get ARIA accessibility tree with @eN refs"),
-            MethodInfo::new("browser.screenshot", "Capture screenshot (base64 or file)"),
+            // ================================================================
+            // Navigation and State
+            // ================================================================
+            MethodInfo::new("browser.open", "Navigate to a URL")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "url",
+                            SchemaBuilder::string()
+                                .format("uri")
+                                .description("URL to navigate to"),
+                        )
+                        .property(
+                            "wait_until",
+                            SchemaBuilder::string()
+                                .enum_values(&["load", "domcontentloaded", "networkidle"])
+                                .default_value(json!("load"))
+                                .description("When to consider navigation complete"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["url"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("url", SchemaBuilder::string().format("uri"))
+                        .property("title", SchemaBuilder::string())
+                        .property("load_time_ms", SchemaBuilder::number())
+                        .build(),
+                )
+                .example("Navigate to Google", json!({"url": "https://google.com"}))
+                .example(
+                    "Wait for network idle",
+                    json!({"url": "https://example.com", "wait_until": "networkidle"}),
+                )
+                .errors(&["NAVIGATION_FAILED", "TIMEOUT"]),
+
+            MethodInfo::new("browser.snapshot", "Get ARIA accessibility tree with @eN refs for element targeting")
+                .schema(
+                    SchemaBuilder::object()
+                        .property("session_id", session_param())
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property(
+                            "snapshot",
+                            SchemaBuilder::string()
+                                .description("ARIA tree with @eN refs for clicking/filling"),
+                        )
+                        .property("url", SchemaBuilder::string().format("uri"))
+                        .property("title", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Get page snapshot", json!({})),
+
+            MethodInfo::new("browser.screenshot", "Capture screenshot as base64 or save to file")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "path",
+                            SchemaBuilder::string()
+                                .description("File path to save screenshot (optional, returns base64 if omitted)"),
+                        )
+                        .property(
+                            "full_page",
+                            SchemaBuilder::boolean()
+                                .default_value(json!(false))
+                                .description("Capture full scrollable page"),
+                        )
+                        .property("session_id", session_param())
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property(
+                            "base64",
+                            SchemaBuilder::string()
+                                .description("Base64-encoded PNG (if no path specified)"),
+                        )
+                        .property(
+                            "path",
+                            SchemaBuilder::string()
+                                .description("Saved file path (if path was specified)"),
+                        )
+                        .property("width", SchemaBuilder::integer())
+                        .property("height", SchemaBuilder::integer())
+                        .build(),
+                )
+                .example("Get base64 screenshot", json!({}))
+                .example("Save to file", json!({"path": "/tmp/screenshot.png", "full_page": true})),
+
+            // ================================================================
             // Interaction
-            MethodInfo::new("browser.click", "Click element by @eN ref or CSS selector"),
-            MethodInfo::new("browser.fill", "Fill input field with value"),
-            MethodInfo::new("browser.press", "Press a keyboard key"),
-            MethodInfo::new("browser.select", "Select an option from a dropdown"),
-            MethodInfo::new("browser.check", "Set checkbox/radio state"),
-            MethodInfo::new("browser.hover", "Hover over an element"),
-            MethodInfo::new("browser.scroll", "Scroll to element or by amount"),
-            MethodInfo::new(
-                "browser.press_combo",
-                "Press key with modifiers (Ctrl, Shift, Alt, Meta)",
-            ),
-            MethodInfo::new("browser.upload", "Upload a file to a file input element"),
-            // Auth state
-            MethodInfo::new(
-                "browser.state.save",
-                "Save auth state (cookies + localStorage)",
-            ),
-            MethodInfo::new("browser.state.load", "Load saved auth state"),
-            MethodInfo::new("browser.state.list", "List saved auth states"),
-            // Session management
-            MethodInfo::new(
-                "browser.session.new",
-                "Create a new isolated session with its own browser context",
-            ),
-            MethodInfo::new("browser.session.list", "List all active sessions"),
-            MethodInfo::new("browser.session.close", "Close and dispose a session"),
+            // ================================================================
+            MethodInfo::new("browser.click", "Click element by @eN ref or CSS selector")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "selector",
+                            SchemaBuilder::string()
+                                .description("@eN ref from snapshot or CSS selector"),
+                        )
+                        .property(
+                            "button",
+                            SchemaBuilder::string()
+                                .enum_values(&["left", "right", "middle"])
+                                .default_value(json!("left")),
+                        )
+                        .property(
+                            "click_count",
+                            SchemaBuilder::integer()
+                                .minimum(1)
+                                .maximum(3)
+                                .default_value(json!(1))
+                                .description("1=click, 2=double-click, 3=triple-click"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["selector"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("clicked", SchemaBuilder::boolean())
+                        .property("selector", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Click by ref", json!({"selector": "@e15"}))
+                .example("Double-click", json!({"selector": "@e20", "click_count": 2}))
+                .errors(&["ELEMENT_NOT_FOUND", "ELEMENT_NOT_VISIBLE"]),
+
+            MethodInfo::new("browser.fill", "Fill input field with value")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "selector",
+                            SchemaBuilder::string()
+                                .description("@eN ref from snapshot or CSS selector"),
+                        )
+                        .property(
+                            "value",
+                            SchemaBuilder::string().description("Text to fill"),
+                        )
+                        .property(
+                            "clear",
+                            SchemaBuilder::boolean()
+                                .default_value(json!(true))
+                                .description("Clear existing content before filling"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["selector", "value"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("filled", SchemaBuilder::boolean())
+                        .property("selector", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Fill search box", json!({"selector": "@e5", "value": "search query"}))
+                .errors(&["ELEMENT_NOT_FOUND", "ELEMENT_NOT_EDITABLE"]),
+
+            MethodInfo::new("browser.press", "Press a keyboard key")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "key",
+                            SchemaBuilder::string()
+                                .description("Key name: Enter, Tab, Escape, ArrowDown, etc."),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["key"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("pressed", SchemaBuilder::boolean())
+                        .property("key", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Press Enter", json!({"key": "Enter"}))
+                .example("Press Escape", json!({"key": "Escape"})),
+
+            MethodInfo::new("browser.select", "Select an option from a dropdown")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "selector",
+                            SchemaBuilder::string()
+                                .description("@eN ref or CSS selector for <select> element"),
+                        )
+                        .property(
+                            "value",
+                            SchemaBuilder::string().description("Option value to select"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["selector", "value"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("selected", SchemaBuilder::boolean())
+                        .property("value", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Select option", json!({"selector": "@e10", "value": "option2"}))
+                .errors(&["ELEMENT_NOT_FOUND", "OPTION_NOT_FOUND"]),
+
+            MethodInfo::new("browser.check", "Set checkbox or radio button state")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "selector",
+                            SchemaBuilder::string()
+                                .description("@eN ref or CSS selector"),
+                        )
+                        .property(
+                            "checked",
+                            SchemaBuilder::boolean()
+                                .default_value(json!(true))
+                                .description("Desired checked state"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["selector"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("checked", SchemaBuilder::boolean())
+                        .build(),
+                )
+                .example("Check checkbox", json!({"selector": "@e8"}))
+                .example("Uncheck", json!({"selector": "@e8", "checked": false})),
+
+            MethodInfo::new("browser.hover", "Hover over an element")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "selector",
+                            SchemaBuilder::string()
+                                .description("@eN ref or CSS selector"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["selector"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("hovered", SchemaBuilder::boolean())
+                        .build(),
+                )
+                .example("Hover over menu", json!({"selector": "@e12"}))
+                .errors(&["ELEMENT_NOT_FOUND"]),
+
+            MethodInfo::new("browser.scroll", "Scroll page or element")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "selector",
+                            SchemaBuilder::string()
+                                .description("@eN ref or CSS selector to scroll into view"),
+                        )
+                        .property(
+                            "direction",
+                            SchemaBuilder::string()
+                                .enum_values(&["up", "down", "left", "right"])
+                                .description("Scroll direction (if no selector)"),
+                        )
+                        .property(
+                            "amount",
+                            SchemaBuilder::integer()
+                                .minimum(0)
+                                .default_value(json!(500))
+                                .description("Pixels to scroll (if using direction)"),
+                        )
+                        .property("session_id", session_param())
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("scrolled", SchemaBuilder::boolean())
+                        .build(),
+                )
+                .example("Scroll to element", json!({"selector": "@e50"}))
+                .example("Scroll down", json!({"direction": "down", "amount": 1000})),
+
+            MethodInfo::new("browser.press_combo", "Press key with modifiers (Ctrl, Shift, Alt, Meta)")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "key",
+                            SchemaBuilder::string().description("Main key to press"),
+                        )
+                        .property(
+                            "modifiers",
+                            SchemaBuilder::array()
+                                .items(
+                                    SchemaBuilder::string()
+                                        .enum_values(&["ctrl", "shift", "alt", "meta"]),
+                                )
+                                .description("Modifier keys to hold"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["key", "modifiers"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("pressed", SchemaBuilder::boolean())
+                        .build(),
+                )
+                .example("Select all (Ctrl+A)", json!({"key": "a", "modifiers": ["ctrl"]}))
+                .example("Copy (Cmd+C on Mac)", json!({"key": "c", "modifiers": ["meta"]})),
+
+            MethodInfo::new("browser.upload", "Upload a file to a file input element")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "selector",
+                            SchemaBuilder::string()
+                                .description("@eN ref or CSS selector for file input"),
+                        )
+                        .property(
+                            "path",
+                            SchemaBuilder::string()
+                                .description("Absolute path to file to upload"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["selector", "path"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("uploaded", SchemaBuilder::boolean())
+                        .property("filename", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Upload file", json!({"selector": "@e30", "path": "/tmp/document.pdf"}))
+                .errors(&["ELEMENT_NOT_FOUND", "FILE_NOT_FOUND"]),
+
+            // ================================================================
+            // Auth State Management
+            // ================================================================
+            MethodInfo::new("browser.state.save", "Save auth state (cookies + localStorage) for reuse")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "name",
+                            SchemaBuilder::string()
+                                .min_length(1)
+                                .max_length(64)
+                                .pattern("^[a-zA-Z0-9_-]+$")
+                                .description("Name for this auth state"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["name"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("saved", SchemaBuilder::boolean())
+                        .property("name", SchemaBuilder::string())
+                        .property("path", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Save GitHub auth", json!({"name": "github-prod"})),
+
+            MethodInfo::new("browser.state.load", "Load previously saved auth state")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "name",
+                            SchemaBuilder::string().description("Name of saved auth state"),
+                        )
+                        .property("session_id", session_param())
+                        .required(&["name"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("loaded", SchemaBuilder::boolean())
+                        .property("name", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Load GitHub auth", json!({"name": "github-prod"}))
+                .errors(&["STATE_NOT_FOUND"]),
+
+            MethodInfo::new("browser.state.list", "List all saved auth states")
+                .schema(SchemaBuilder::object().build())
+                .returns(
+                    SchemaBuilder::object()
+                        .property(
+                            "states",
+                            SchemaBuilder::array().items(
+                                SchemaBuilder::object()
+                                    .property("name", SchemaBuilder::string())
+                                    .property("created_at", SchemaBuilder::string().format("date-time"))
+                                    .property("size_bytes", SchemaBuilder::integer()),
+                            ),
+                        )
+                        .property("count", SchemaBuilder::integer())
+                        .build(),
+                )
+                .example("List auth states", json!({})),
+
+            // ================================================================
+            // Session Management
+            // ================================================================
+            MethodInfo::new("browser.session.new", "Create isolated session with separate cookies/storage")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "name",
+                            SchemaBuilder::string()
+                                .description("Optional friendly name for the session"),
+                        )
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("session_id", SchemaBuilder::string())
+                        .property("name", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Create named session", json!({"name": "shopping-cart"}))
+                .example("Create anonymous session", json!({})),
+
+            MethodInfo::new("browser.session.list", "List all active browser sessions")
+                .schema(SchemaBuilder::object().build())
+                .returns(
+                    SchemaBuilder::object()
+                        .property(
+                            "sessions",
+                            SchemaBuilder::array().items(
+                                SchemaBuilder::object()
+                                    .property("session_id", SchemaBuilder::string())
+                                    .property("name", SchemaBuilder::string())
+                                    .property("created_at", SchemaBuilder::string().format("date-time"))
+                                    .property("current_url", SchemaBuilder::string().format("uri")),
+                            ),
+                        )
+                        .property("count", SchemaBuilder::integer())
+                        .build(),
+                )
+                .example("List sessions", json!({})),
+
+            MethodInfo::new("browser.session.close", "Close and dispose a browser session")
+                .schema(
+                    SchemaBuilder::object()
+                        .property(
+                            "session_id",
+                            SchemaBuilder::string().description("Session ID to close"),
+                        )
+                        .required(&["session_id"])
+                        .build(),
+                )
+                .returns(
+                    SchemaBuilder::object()
+                        .property("closed", SchemaBuilder::boolean())
+                        .property("session_id", SchemaBuilder::string())
+                        .build(),
+                )
+                .example("Close session", json!({"session_id": "abc123"}))
+                .errors(&["SESSION_NOT_FOUND"]),
         ]
     }
 }
