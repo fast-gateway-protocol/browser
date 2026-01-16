@@ -1,6 +1,11 @@
 //! FGP Browser Gateway - Pure Rust browser automation via CDP.
+//!
+//! # CHANGELOG (recent first, max 5 entries)
+//! 01/15/2026 - Added extension bridge WebSocket server (Claude)
+//! 01/15/2026 - Added connect mode for user's Chrome (Claude)
 
 mod browser;
+mod extension_bridge;
 mod models;
 mod service;
 
@@ -54,6 +59,15 @@ enum Commands {
         /// /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
         #[arg(long)]
         connect: Option<String>,
+
+        /// Enable extension bridge WebSocket server (port 9223)
+        /// Allows FGP Chrome extension to provide tab groups, cookies, etc.
+        #[arg(long)]
+        extension_bridge: bool,
+
+        /// Extension bridge WebSocket port (default: 9223)
+        #[arg(long, default_value = "9223")]
+        extension_port: u16,
     },
 
     /// Stop the browser daemon
@@ -302,7 +316,9 @@ fn main() -> Result<()> {
             headed,
             channel: _,
             connect,
-        } => cmd_start(socket, foreground, !headed, connect),
+            extension_bridge,
+            extension_port,
+        } => cmd_start(socket, foreground, !headed, connect, extension_bridge, extension_port),
         Commands::Stop { socket } => cmd_stop(socket),
         Commands::Status { socket } => cmd_status(socket),
         Commands::Open {
@@ -476,7 +492,14 @@ fn main() -> Result<()> {
     }
 }
 
-fn cmd_start(socket: String, foreground: bool, headless: bool, connect: Option<String>) -> Result<()> {
+fn cmd_start(
+    socket: String,
+    foreground: bool,
+    headless: bool,
+    connect: Option<String>,
+    extension_bridge: bool,
+    extension_port: u16,
+) -> Result<()> {
     let socket_path = shellexpand::tilde(&socket).to_string();
 
     // Create parent directory
@@ -495,6 +518,10 @@ fn cmd_start(socket: String, foreground: bool, headless: bool, connect: Option<S
         println!("Mode: {}", if headless { "headless" } else { "headed" });
     }
 
+    if extension_bridge {
+        println!("Extension bridge: ws://127.0.0.1:{}", extension_port);
+    }
+
     // Helper to create the service based on mode
     let create_service = |connect_url: &Option<String>| -> Result<BrowserService> {
         if let Some(url) = connect_url {
@@ -504,10 +531,33 @@ fn cmd_start(socket: String, foreground: bool, headless: bool, connect: Option<S
         }
     };
 
+    // Helper to start extension bridge if enabled
+    let start_extension_bridge = |port: u16| {
+        if extension_bridge {
+            let bridge = extension_bridge::ExtensionBridge::new(Some(port));
+            // Start extension bridge in a separate tokio runtime
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+                rt.block_on(async {
+                    if let Err(e) = bridge.start().await {
+                        tracing::error!("Extension bridge error: {}", e);
+                    }
+                    // Keep runtime alive
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                    }
+                });
+            });
+            tracing::info!("Extension bridge started on port {}", port);
+        }
+    };
+
     if foreground {
         tracing_subscriber::fmt()
             .with_env_filter("fgp_browser=debug,fgp_daemon=debug,chromiumoxide=warn")
             .init();
+
+        start_extension_bridge(extension_port);
 
         let service = create_service(&connect).context("Failed to create BrowserService")?;
         let server =
@@ -525,6 +575,8 @@ fn cmd_start(socket: String, foreground: bool, headless: bool, connect: Option<S
                 tracing_subscriber::fmt()
                     .with_env_filter("fgp_browser=debug,fgp_daemon=debug,chromiumoxide=warn")
                     .init();
+
+                start_extension_bridge(extension_port);
 
                 let service = create_service(&connect).context("Failed to create BrowserService")?;
                 let server =
