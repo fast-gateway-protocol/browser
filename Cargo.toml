@@ -16,8 +16,8 @@ name = "browser-gateway"
 path = "src/main.rs"
 
 [dependencies]
-# FGP daemon SDK (local path for development)
-fgp-daemon = { path = "../daemon" }
+# FGP daemon SDK
+fgp-daemon = { git = "https://github.com/fast-gateway-protocol/daemon" }
 
 # Chrome DevTools Protocol
 chromiumoxide = { version = "0.7", default-features = false, features = ["tokio-runtime"] }
