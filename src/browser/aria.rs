@@ -1,32 +1,95 @@
 //! ARIA tree extraction from Chrome DevTools Protocol.
+//!
+//! Extracts interactive elements and injects `data-fgp-ref` attributes onto
+//! the DOM so that `@eN` refs returned in snapshots can be used by interaction
+//! methods (click, fill, etc.) via `resolve_selector`.
 
 use anyhow::{Context, Result};
 use chromiumoxide::cdp::browser_protocol::accessibility::{
     AxNode as CdpAxNode, AxProperty, AxPropertyName, GetFullAxTreeParams,
 };
+use chromiumoxide::cdp::browser_protocol::dom::{DescribeNodeParams, SetAttributeValueParams};
 use chromiumoxide::page::Page;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 
 use crate::models::AriaNode;
 
+/// Clear stale `data-fgp-ref` attributes from previous snapshots.
+async fn clear_old_refs(page: &Page) {
+    let _ = page
+        .evaluate(
+            "document.querySelectorAll('[data-fgp-ref]').forEach(el => el.removeAttribute('data-fgp-ref'))",
+        )
+        .await;
+}
+
+/// Inject `data-fgp-ref` attributes onto DOM elements for CDP-extracted nodes.
+///
+/// Uses `backend_dom_node_id` from each CDP AxNode to resolve the DOM element
+/// via CDP, then sets `data-fgp-ref="eN"` so that `resolve_selector("@eN")`
+/// can find it later.
+async fn inject_refs_for_cdp_nodes(page: &Page, cdp_nodes: &[&CdpAxNode], aria_nodes: &[AriaNode]) {
+    for (cdp_node, aria_node) in cdp_nodes.iter().zip(aria_nodes.iter()) {
+        let backend_id = match cdp_node.backend_dom_node_id {
+            Some(id) => id,
+            None => continue,
+        };
+
+        // Strip the "@" prefix: "@e5" -> "e5"
+        let ref_value = &aria_node.ref_id[1..];
+
+        // Resolve BackendNodeId -> NodeId via DOM.describeNode
+        let describe_result = page
+            .execute(
+                DescribeNodeParams::builder()
+                    .backend_node_id(backend_id)
+                    .build(),
+            )
+            .await;
+
+        let node_id = match describe_result {
+            Ok(result) => result.node.node_id,
+            Err(_) => continue,
+        };
+
+        // Set the data-fgp-ref attribute on the DOM element
+        let _ = page
+            .execute(SetAttributeValueParams::new(
+                node_id,
+                "data-fgp-ref",
+                ref_value,
+            ))
+            .await;
+    }
+}
+
 /// Extract ARIA accessibility tree from page.
 pub async fn extract_aria_tree(page: &Page) -> Result<Vec<AriaNode>> {
     let mut counter = 0;
+
+    // Clear stale refs from previous snapshots
+    clear_old_refs(page).await;
 
     // Try CDP accessibility tree first
     if let Ok(response) = page.execute(GetFullAxTreeParams::default()).await {
         // Single-pass extraction - no clones, references only
         let capacity = response.nodes.len() / 4; // Most nodes filtered out
+        let mut included_cdp_nodes: Vec<&CdpAxNode> = Vec::with_capacity(capacity);
         let mut nodes = Vec::with_capacity(capacity);
 
         for node in &response.nodes {
             if is_interactive_node(node) || has_role_or_name(node) {
+                included_cdp_nodes.push(node);
                 nodes.push(convert_node_ref(node, &mut counter));
             }
         }
 
         if !nodes.is_empty() {
+            // Inject data-fgp-ref attributes onto the actual DOM elements
+            // so that resolve_selector("@eN") can find them later
+            inject_refs_for_cdp_nodes(page, &included_cdp_nodes, &nodes).await;
+
             tracing::debug!(
                 "Extracted {} nodes from CDP accessibility tree",
                 nodes.len()
@@ -36,6 +99,7 @@ pub async fn extract_aria_tree(page: &Page) -> Result<Vec<AriaNode>> {
     }
 
     // Fallback to DOM traversal - more reliable on macOS
+    // This path injects data-fgp-ref attributes directly in the JS
     tracing::debug!("CDP accessibility tree empty, falling back to DOM traversal");
     let nodes = extract_dom_interactives(page, &mut counter).await?;
 
@@ -127,8 +191,12 @@ struct DomSnapshotNode {
 }
 
 async fn extract_dom_interactives(page: &Page, counter: &mut usize) -> Result<Vec<AriaNode>> {
-    let script = r#"(() => {
-        const roleFor = (el) => {
+    // The JS discovers interactive elements, collects ARIA data, AND injects
+    // data-fgp-ref attributes in the same pass. The ref counter in JS starts
+    // at counter+1 to stay in sync with the Rust counter that increments below.
+    let script = format!(
+        r#"((startCounter) => {{
+        const roleFor = (el) => {{
             const explicit = el.getAttribute && el.getAttribute('role');
             if (explicit) return explicit;
             const tag = el.tagName ? el.tagName.toLowerCase() : '';
@@ -142,7 +210,7 @@ async fn extract_dom_interactives(page: &Page, counter: &mut usize) -> Result<Ve
             if (tag === 'option') return 'option';
             if (tag === 'select') return 'combobox';
             if (tag === 'textarea') return 'textbox';
-            if (tag === 'input') {
+            if (tag === 'input') {{
                 const t = (el.getAttribute('type') || 'text').toLowerCase();
                 if (t === 'checkbox') return 'checkbox';
                 if (t === 'radio') return 'radio';
@@ -150,12 +218,12 @@ async fn extract_dom_interactives(page: &Page, counter: &mut usize) -> Result<Ve
                 if (t === 'search') return 'searchbox';
                 if (t === 'number') return 'spinbutton';
                 return 'textbox';
-            }
+            }}
             if (tag && tag.startsWith('h')) return 'heading';
             if (el.isContentEditable) return 'textbox';
             return null;
-        };
-        const nameFor = (el) => {
+        }};
+        const nameFor = (el) => {{
             const label = el.getAttribute && el.getAttribute('aria-label');
             if (label) return label;
             const alt = el.getAttribute && el.getAttribute('alt');
@@ -164,7 +232,7 @@ async fn extract_dom_interactives(page: &Page, counter: &mut usize) -> Result<Ve
             if (title) return title;
             const text = (el.textContent || '').trim();
             return text.length ? text : null;
-        };
+        }};
         const selector = [
             'a', 'button', 'input', 'select', 'textarea', 'option',
             '[role]', 'img', 'nav', 'main', 'article', 'section',
@@ -172,23 +240,28 @@ async fn extract_dom_interactives(page: &Page, counter: &mut usize) -> Result<Ve
         ].join(',');
         const nodes = [];
         const seen = new Set();
-        for (const el of document.querySelectorAll(selector)) {
+        let refCounter = startCounter;
+        for (const el of document.querySelectorAll(selector)) {{
             if (seen.has(el)) continue;
             seen.add(el);
             const role = roleFor(el);
             if (!role) continue;
+            refCounter++;
+            el.setAttribute('data-fgp-ref', 'e' + refCounter);
             const name = nameFor(el);
             const value = 'value' in el ? el.value : null;
-            nodes.push({
+            nodes.push({{
                 role,
                 name,
                 value,
                 focusable: el.tabIndex >= 0,
                 focused: document.activeElement === el,
-            });
-        }
+            }});
+        }}
         return nodes;
-    })()"#;
+    }})({})"#,
+        *counter
+    );
 
     let dom_nodes: Vec<DomSnapshotNode> = page
         .evaluate(script)
