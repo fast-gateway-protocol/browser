@@ -867,3 +867,87 @@ fn resolve_selector(selector: &str) -> String {
 fn count_nodes(nodes: &[crate::models::AriaNode]) -> usize {
     nodes.iter().map(|n| 1 + count_nodes(&n.children)).sum()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// End-to-end test: snapshot injects data-fgp-ref attributes, and @eN refs
+    /// resolve to findable elements.
+    ///
+    /// Requires Chrome — run with: cargo test -- --ignored snapshot_refs
+    #[tokio::test]
+    #[ignore]
+    async fn snapshot_refs_are_findable() {
+        let tmp = std::env::temp_dir().join("fgp-test-snapshot-refs");
+        let client = BrowserClient::new(tmp, true)
+            .await
+            .expect("Failed to launch Chrome");
+
+        // Navigate to a page with known interactive elements
+        let html = r##"data:text/html,<html><body>
+            <button id="btn1">Click Me</button>
+            <input id="input1" type="text" placeholder="Type here" />
+            <a id="link1" href="#">A Link</a>
+        </body></html>"##;
+        client.navigate(html, None).await.unwrap();
+
+        // Take snapshot — this should inject data-fgp-ref attributes
+        let snapshot = client.snapshot(None).await.unwrap();
+        assert!(!snapshot.nodes.is_empty(), "Snapshot should have nodes");
+
+        // Every node with an @eN ref should be findable via resolve_selector
+        let page = client.get_page(None).await.unwrap();
+        let mut found = 0;
+        for node in &snapshot.nodes {
+            let css = resolve_selector(&node.ref_id);
+            if page.find_element(&css).await.is_ok() {
+                found += 1;
+            }
+        }
+
+        assert!(
+            found > 0,
+            "At least one @eN ref should resolve to a DOM element, but none did. Nodes: {:?}",
+            snapshot.nodes.iter().map(|n| (&n.ref_id, &n.role, &n.name)).collect::<Vec<_>>()
+        );
+    }
+
+    /// Verify that taking a second snapshot re-injects valid refs.
+    ///
+    /// Requires Chrome — run with: cargo test -- --ignored snapshot_refs_refresh
+    #[tokio::test]
+    #[ignore]
+    async fn snapshot_refs_refresh_on_second_call() {
+        let tmp = std::env::temp_dir().join("fgp-test-snapshot-refresh");
+        let client = BrowserClient::new(tmp, true)
+            .await
+            .expect("Failed to launch Chrome");
+
+        let html = r##"data:text/html,<html><body>
+            <button id="btn1">Click Me</button>
+            <a id="link1" href="#">A Link</a>
+        </body></html>"##;
+        client.navigate(html, None).await.unwrap();
+
+        // First snapshot
+        let snap1 = client.snapshot(None).await.unwrap();
+        assert!(!snap1.nodes.is_empty());
+
+        // Second snapshot on the same page — refs should be refreshed
+        let snap2 = client.snapshot(None).await.unwrap();
+        assert!(!snap2.nodes.is_empty());
+
+        // Refs from second snapshot should all be findable
+        let page = client.get_page(None).await.unwrap();
+        for node in &snap2.nodes {
+            let css = resolve_selector(&node.ref_id);
+            assert!(
+                page.find_element(&css).await.is_ok(),
+                "Ref {} (role={}) should resolve after second snapshot",
+                node.ref_id,
+                node.role
+            );
+        }
+    }
+}
