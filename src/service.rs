@@ -183,7 +183,8 @@ impl BrowserService {
 
         let result = self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client.navigate(url, session_id.as_deref()).await
         })?;
 
@@ -199,7 +200,8 @@ impl BrowserService {
 
         let result = self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client.snapshot(session_id.as_deref()).await
         })?;
 
@@ -217,7 +219,8 @@ impl BrowserService {
 
         let result = self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client.screenshot(path, session_id.as_deref()).await
         })?;
 
@@ -239,7 +242,8 @@ impl BrowserService {
 
         let result = self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client.click(&selector, session_id.as_deref()).await
         })?;
 
@@ -266,7 +270,8 @@ impl BrowserService {
 
         let result = self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client
                 .fill(&selector, &value, session_id.as_deref())
                 .await
@@ -290,7 +295,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client.press(&key, session_id.as_deref()).await
         })?;
 
@@ -312,7 +318,8 @@ impl BrowserService {
 
         let state = self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             let cookies = browser_client.get_cookies(session_id.as_deref()).await?;
             let local_storage = browser_client
                 .get_local_storage(session_id.as_deref())
@@ -356,7 +363,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client
                 .set_cookies(&state.cookies, session_id.as_deref())
                 .await?;
@@ -447,7 +455,8 @@ impl BrowserService {
 
         let id = self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client.create_session(session_id).await
         })?;
 
@@ -522,7 +531,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client
                 .select(&selector, &value, session_id.as_deref())
                 .await
@@ -554,7 +564,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client
                 .check(&selector, checked, session_id.as_deref())
                 .await
@@ -582,7 +593,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client.hover(&selector, session_id.as_deref()).await
         })?;
 
@@ -606,7 +618,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client
                 .scroll(selector.as_deref(), x, y, session_id.as_deref())
                 .await
@@ -643,7 +656,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             let mod_refs: Vec<&str> = modifiers.iter().map(|s| s.as_str()).collect();
             browser_client
                 .press_combo(&mod_refs, &key, session_id.as_deref())
@@ -677,7 +691,8 @@ impl BrowserService {
 
         self.runtime.block_on(async {
             let browser_client =
-                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref()).await?;
+                Self::get_or_init_client(&client, &user_data_dir, headless, connect_url.as_deref())
+                    .await?;
             browser_client
                 .upload(&selector, &path, session_id.as_deref())
                 .await
@@ -714,7 +729,11 @@ impl BrowserService {
 
         // Strip 'browser.' prefix for the actual Chrome Extension API call
         let ext_method = extension_method_name(method);
-        tracing::debug!("Routing '{}' to Chrome extension as '{}'", method, ext_method);
+        tracing::debug!(
+            "Routing '{}' to Chrome extension as '{}'",
+            method,
+            ext_method
+        );
         let response = bridge.call_blocking(ext_method, params)?;
         ExtensionBridge::response_to_value(response)
     }
@@ -807,62 +826,69 @@ impl FgpService for BrowserService {
                     json!({"url": "https://example.com", "wait_until": "networkidle"}),
                 )
                 .errors(&["NAVIGATION_FAILED", "TIMEOUT"]),
-
-            MethodInfo::new("browser.snapshot", "Get ARIA accessibility tree with @eN refs for element targeting")
-                .schema(
-                    SchemaBuilder::object()
-                        .property("session_id", session_param())
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property(
-                            "snapshot",
-                            SchemaBuilder::string()
-                                .description("ARIA tree with @eN refs for clicking/filling"),
-                        )
-                        .property("url", SchemaBuilder::string().format("uri"))
-                        .property("title", SchemaBuilder::string())
-                        .build(),
-                )
-                .example("Get page snapshot", json!({})),
-
-            MethodInfo::new("browser.screenshot", "Capture screenshot as base64 or save to file")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "path",
-                            SchemaBuilder::string()
-                                .description("File path to save screenshot (optional, returns base64 if omitted)"),
-                        )
-                        .property(
-                            "full_page",
-                            SchemaBuilder::boolean()
-                                .default_value(json!(false))
-                                .description("Capture full scrollable page"),
-                        )
-                        .property("session_id", session_param())
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property(
-                            "base64",
-                            SchemaBuilder::string()
-                                .description("Base64-encoded PNG (if no path specified)"),
-                        )
-                        .property(
-                            "path",
-                            SchemaBuilder::string()
-                                .description("Saved file path (if path was specified)"),
-                        )
-                        .property("width", SchemaBuilder::integer())
-                        .property("height", SchemaBuilder::integer())
-                        .build(),
-                )
-                .example("Get base64 screenshot", json!({}))
-                .example("Save to file", json!({"path": "/tmp/screenshot.png", "full_page": true})),
-
+            MethodInfo::new(
+                "browser.snapshot",
+                "Get ARIA accessibility tree with @eN refs for element targeting",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property("session_id", session_param())
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property(
+                        "snapshot",
+                        SchemaBuilder::string()
+                            .description("ARIA tree with @eN refs for clicking/filling"),
+                    )
+                    .property("url", SchemaBuilder::string().format("uri"))
+                    .property("title", SchemaBuilder::string())
+                    .build(),
+            )
+            .example("Get page snapshot", json!({})),
+            MethodInfo::new(
+                "browser.screenshot",
+                "Capture screenshot as base64 or save to file",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "path",
+                        SchemaBuilder::string().description(
+                            "File path to save screenshot (optional, returns base64 if omitted)",
+                        ),
+                    )
+                    .property(
+                        "full_page",
+                        SchemaBuilder::boolean()
+                            .default_value(json!(false))
+                            .description("Capture full scrollable page"),
+                    )
+                    .property("session_id", session_param())
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property(
+                        "base64",
+                        SchemaBuilder::string()
+                            .description("Base64-encoded PNG (if no path specified)"),
+                    )
+                    .property(
+                        "path",
+                        SchemaBuilder::string()
+                            .description("Saved file path (if path was specified)"),
+                    )
+                    .property("width", SchemaBuilder::integer())
+                    .property("height", SchemaBuilder::integer())
+                    .build(),
+            )
+            .example("Get base64 screenshot", json!({}))
+            .example(
+                "Save to file",
+                json!({"path": "/tmp/screenshot.png", "full_page": true}),
+            ),
             // ================================================================
             // Interaction
             // ================================================================
@@ -899,9 +925,11 @@ impl FgpService for BrowserService {
                         .build(),
                 )
                 .example("Click by ref", json!({"selector": "@e15"}))
-                .example("Double-click", json!({"selector": "@e20", "click_count": 2}))
+                .example(
+                    "Double-click",
+                    json!({"selector": "@e20", "click_count": 2}),
+                )
                 .errors(&["ELEMENT_NOT_FOUND", "ELEMENT_NOT_VISIBLE"]),
-
             MethodInfo::new("browser.fill", "Fill input field with value")
                 .schema(
                     SchemaBuilder::object()
@@ -910,10 +938,7 @@ impl FgpService for BrowserService {
                             SchemaBuilder::string()
                                 .description("@eN ref from snapshot or CSS selector"),
                         )
-                        .property(
-                            "value",
-                            SchemaBuilder::string().description("Text to fill"),
-                        )
+                        .property("value", SchemaBuilder::string().description("Text to fill"))
                         .property(
                             "clear",
                             SchemaBuilder::boolean()
@@ -930,9 +955,11 @@ impl FgpService for BrowserService {
                         .property("selector", SchemaBuilder::string())
                         .build(),
                 )
-                .example("Fill search box", json!({"selector": "@e5", "value": "search query"}))
+                .example(
+                    "Fill search box",
+                    json!({"selector": "@e5", "value": "search query"}),
+                )
                 .errors(&["ELEMENT_NOT_FOUND", "ELEMENT_NOT_EDITABLE"]),
-
             MethodInfo::new("browser.press", "Press a keyboard key")
                 .schema(
                     SchemaBuilder::object()
@@ -953,7 +980,6 @@ impl FgpService for BrowserService {
                 )
                 .example("Press Enter", json!({"key": "Enter"}))
                 .example("Press Escape", json!({"key": "Escape"})),
-
             MethodInfo::new("browser.select", "Select an option from a dropdown")
                 .schema(
                     SchemaBuilder::object()
@@ -976,16 +1002,17 @@ impl FgpService for BrowserService {
                         .property("value", SchemaBuilder::string())
                         .build(),
                 )
-                .example("Select option", json!({"selector": "@e10", "value": "option2"}))
+                .example(
+                    "Select option",
+                    json!({"selector": "@e10", "value": "option2"}),
+                )
                 .errors(&["ELEMENT_NOT_FOUND", "OPTION_NOT_FOUND"]),
-
             MethodInfo::new("browser.check", "Set checkbox or radio button state")
                 .schema(
                     SchemaBuilder::object()
                         .property(
                             "selector",
-                            SchemaBuilder::string()
-                                .description("@eN ref or CSS selector"),
+                            SchemaBuilder::string().description("@eN ref or CSS selector"),
                         )
                         .property(
                             "checked",
@@ -1004,14 +1031,12 @@ impl FgpService for BrowserService {
                 )
                 .example("Check checkbox", json!({"selector": "@e8"}))
                 .example("Uncheck", json!({"selector": "@e8", "checked": false})),
-
             MethodInfo::new("browser.hover", "Hover over an element")
                 .schema(
                     SchemaBuilder::object()
                         .property(
                             "selector",
-                            SchemaBuilder::string()
-                                .description("@eN ref or CSS selector"),
+                            SchemaBuilder::string().description("@eN ref or CSS selector"),
                         )
                         .property("session_id", session_param())
                         .required(&["selector"])
@@ -1024,7 +1049,6 @@ impl FgpService for BrowserService {
                 )
                 .example("Hover over menu", json!({"selector": "@e12"}))
                 .errors(&["ELEMENT_NOT_FOUND"]),
-
             MethodInfo::new("browser.scroll", "Scroll page or element")
                 .schema(
                     SchemaBuilder::object()
@@ -1056,35 +1080,42 @@ impl FgpService for BrowserService {
                 )
                 .example("Scroll to element", json!({"selector": "@e50"}))
                 .example("Scroll down", json!({"direction": "down", "amount": 1000})),
-
-            MethodInfo::new("browser.press_combo", "Press key with modifiers (Ctrl, Shift, Alt, Meta)")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "key",
-                            SchemaBuilder::string().description("Main key to press"),
-                        )
-                        .property(
-                            "modifiers",
-                            SchemaBuilder::array()
-                                .items(
-                                    SchemaBuilder::string()
-                                        .enum_values(&["ctrl", "shift", "alt", "meta"]),
-                                )
-                                .description("Modifier keys to hold"),
-                        )
-                        .property("session_id", session_param())
-                        .required(&["key", "modifiers"])
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property("pressed", SchemaBuilder::boolean())
-                        .build(),
-                )
-                .example("Select all (Ctrl+A)", json!({"key": "a", "modifiers": ["ctrl"]}))
-                .example("Copy (Cmd+C on Mac)", json!({"key": "c", "modifiers": ["meta"]})),
-
+            MethodInfo::new(
+                "browser.press_combo",
+                "Press key with modifiers (Ctrl, Shift, Alt, Meta)",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "key",
+                        SchemaBuilder::string().description("Main key to press"),
+                    )
+                    .property(
+                        "modifiers",
+                        SchemaBuilder::array()
+                            .items(
+                                SchemaBuilder::string()
+                                    .enum_values(&["ctrl", "shift", "alt", "meta"]),
+                            )
+                            .description("Modifier keys to hold"),
+                    )
+                    .property("session_id", session_param())
+                    .required(&["key", "modifiers"])
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property("pressed", SchemaBuilder::boolean())
+                    .build(),
+            )
+            .example(
+                "Select all (Ctrl+A)",
+                json!({"key": "a", "modifiers": ["ctrl"]}),
+            )
+            .example(
+                "Copy (Cmd+C on Mac)",
+                json!({"key": "c", "modifiers": ["meta"]}),
+            ),
             MethodInfo::new("browser.upload", "Upload a file to a file input element")
                 .schema(
                     SchemaBuilder::object()
@@ -1095,8 +1126,7 @@ impl FgpService for BrowserService {
                         )
                         .property(
                             "path",
-                            SchemaBuilder::string()
-                                .description("Absolute path to file to upload"),
+                            SchemaBuilder::string().description("Absolute path to file to upload"),
                         )
                         .property("session_id", session_param())
                         .required(&["selector", "path"])
@@ -1108,36 +1138,40 @@ impl FgpService for BrowserService {
                         .property("filename", SchemaBuilder::string())
                         .build(),
                 )
-                .example("Upload file", json!({"selector": "@e30", "path": "/tmp/document.pdf"}))
+                .example(
+                    "Upload file",
+                    json!({"selector": "@e30", "path": "/tmp/document.pdf"}),
+                )
                 .errors(&["ELEMENT_NOT_FOUND", "FILE_NOT_FOUND"]),
-
             // ================================================================
             // Auth State Management
             // ================================================================
-            MethodInfo::new("browser.state.save", "Save auth state (cookies + localStorage) for reuse")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "name",
-                            SchemaBuilder::string()
-                                .min_length(1)
-                                .max_length(64)
-                                .pattern("^[a-zA-Z0-9_-]+$")
-                                .description("Name for this auth state"),
-                        )
-                        .property("session_id", session_param())
-                        .required(&["name"])
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property("saved", SchemaBuilder::boolean())
-                        .property("name", SchemaBuilder::string())
-                        .property("path", SchemaBuilder::string())
-                        .build(),
-                )
-                .example("Save GitHub auth", json!({"name": "github-prod"})),
-
+            MethodInfo::new(
+                "browser.state.save",
+                "Save auth state (cookies + localStorage) for reuse",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "name",
+                        SchemaBuilder::string()
+                            .min_length(1)
+                            .max_length(64)
+                            .pattern("^[a-zA-Z0-9_-]+$")
+                            .description("Name for this auth state"),
+                    )
+                    .property("session_id", session_param())
+                    .required(&["name"])
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property("saved", SchemaBuilder::boolean())
+                    .property("name", SchemaBuilder::string())
+                    .property("path", SchemaBuilder::string())
+                    .build(),
+            )
+            .example("Save GitHub auth", json!({"name": "github-prod"})),
             MethodInfo::new("browser.state.load", "Load previously saved auth state")
                 .schema(
                     SchemaBuilder::object()
@@ -1157,7 +1191,6 @@ impl FgpService for BrowserService {
                 )
                 .example("Load GitHub auth", json!({"name": "github-prod"}))
                 .errors(&["STATE_NOT_FOUND"]),
-
             MethodInfo::new("browser.state.list", "List all saved auth states")
                 .schema(SchemaBuilder::object().build())
                 .returns(
@@ -1167,7 +1200,10 @@ impl FgpService for BrowserService {
                             SchemaBuilder::array().items(
                                 SchemaBuilder::object()
                                     .property("name", SchemaBuilder::string())
-                                    .property("created_at", SchemaBuilder::string().format("date-time"))
+                                    .property(
+                                        "created_at",
+                                        SchemaBuilder::string().format("date-time"),
+                                    )
                                     .property("size_bytes", SchemaBuilder::integer()),
                             ),
                         )
@@ -1175,29 +1211,30 @@ impl FgpService for BrowserService {
                         .build(),
                 )
                 .example("List auth states", json!({})),
-
             // ================================================================
             // Session Management
             // ================================================================
-            MethodInfo::new("browser.session.new", "Create isolated session with separate cookies/storage")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "name",
-                            SchemaBuilder::string()
-                                .description("Optional friendly name for the session"),
-                        )
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property("session_id", SchemaBuilder::string())
-                        .property("name", SchemaBuilder::string())
-                        .build(),
-                )
-                .example("Create named session", json!({"name": "shopping-cart"}))
-                .example("Create anonymous session", json!({})),
-
+            MethodInfo::new(
+                "browser.session.new",
+                "Create isolated session with separate cookies/storage",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "name",
+                        SchemaBuilder::string()
+                            .description("Optional friendly name for the session"),
+                    )
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property("session_id", SchemaBuilder::string())
+                    .property("name", SchemaBuilder::string())
+                    .build(),
+            )
+            .example("Create named session", json!({"name": "shopping-cart"}))
+            .example("Create anonymous session", json!({})),
             MethodInfo::new("browser.session.list", "List all active browser sessions")
                 .schema(SchemaBuilder::object().build())
                 .returns(
@@ -1208,7 +1245,10 @@ impl FgpService for BrowserService {
                                 SchemaBuilder::object()
                                     .property("session_id", SchemaBuilder::string())
                                     .property("name", SchemaBuilder::string())
-                                    .property("created_at", SchemaBuilder::string().format("date-time"))
+                                    .property(
+                                        "created_at",
+                                        SchemaBuilder::string().format("date-time"),
+                                    )
                                     .property("current_url", SchemaBuilder::string().format("uri")),
                             ),
                         )
@@ -1216,26 +1256,27 @@ impl FgpService for BrowserService {
                         .build(),
                 )
                 .example("List sessions", json!({})),
-
-            MethodInfo::new("browser.session.close", "Close and dispose a browser session")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "session_id",
-                            SchemaBuilder::string().description("Session ID to close"),
-                        )
-                        .required(&["session_id"])
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property("closed", SchemaBuilder::boolean())
-                        .property("session_id", SchemaBuilder::string())
-                        .build(),
-                )
-                .example("Close session", json!({"session_id": "abc123"}))
-                .errors(&["SESSION_NOT_FOUND"]),
-
+            MethodInfo::new(
+                "browser.session.close",
+                "Close and dispose a browser session",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "session_id",
+                        SchemaBuilder::string().description("Session ID to close"),
+                    )
+                    .required(&["session_id"])
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property("closed", SchemaBuilder::boolean())
+                    .property("session_id", SchemaBuilder::string())
+                    .build(),
+            )
+            .example("Close session", json!({"session_id": "abc123"}))
+            .errors(&["SESSION_NOT_FOUND"]),
             // ================================================================
             // Extension Methods (requires Chrome extension)
             // ================================================================
@@ -1263,54 +1304,64 @@ impl FgpService for BrowserService {
                 )
                 .example("Group tabs", json!({"tabIds": [1, 2, 3]}))
                 .errors(&["EXTENSION_NOT_CONNECTED"]),
-
-            MethodInfo::new("browser.tabGroups.update", "[Extension] Update tab group properties")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "groupId",
-                            SchemaBuilder::integer().description("Tab group ID"),
-                        )
-                        .property(
-                            "title",
-                            SchemaBuilder::string().description("Group title"),
-                        )
-                        .property(
-                            "color",
-                            SchemaBuilder::string()
-                                .enum_values(&["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"])
-                                .description("Group color"),
-                        )
-                        .property(
-                            "collapsed",
-                            SchemaBuilder::boolean().description("Collapse the group"),
-                        )
-                        .required(&["groupId"])
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property("updated", SchemaBuilder::boolean())
-                        .build(),
-                )
-                .example("Update group", json!({"groupId": 1, "title": "Research", "color": "blue"}))
-                .errors(&["EXTENSION_NOT_CONNECTED", "GROUP_NOT_FOUND"]),
-
-            MethodInfo::new("browser.cookies.getAll", "[Extension] Get all cookies matching criteria")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "domain",
-                            SchemaBuilder::string().description("Cookie domain filter"),
-                        )
-                        .property(
-                            "url",
-                            SchemaBuilder::string().format("uri").description("URL to get cookies for"),
-                        )
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::array().items(
+            MethodInfo::new(
+                "browser.tabGroups.update",
+                "[Extension] Update tab group properties",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "groupId",
+                        SchemaBuilder::integer().description("Tab group ID"),
+                    )
+                    .property("title", SchemaBuilder::string().description("Group title"))
+                    .property(
+                        "color",
+                        SchemaBuilder::string()
+                            .enum_values(&[
+                                "grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan",
+                                "orange",
+                            ])
+                            .description("Group color"),
+                    )
+                    .property(
+                        "collapsed",
+                        SchemaBuilder::boolean().description("Collapse the group"),
+                    )
+                    .required(&["groupId"])
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property("updated", SchemaBuilder::boolean())
+                    .build(),
+            )
+            .example(
+                "Update group",
+                json!({"groupId": 1, "title": "Research", "color": "blue"}),
+            )
+            .errors(&["EXTENSION_NOT_CONNECTED", "GROUP_NOT_FOUND"]),
+            MethodInfo::new(
+                "browser.cookies.getAll",
+                "[Extension] Get all cookies matching criteria",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "domain",
+                        SchemaBuilder::string().description("Cookie domain filter"),
+                    )
+                    .property(
+                        "url",
+                        SchemaBuilder::string()
+                            .format("uri")
+                            .description("URL to get cookies for"),
+                    )
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::array()
+                    .items(
                         SchemaBuilder::object()
                             .property("name", SchemaBuilder::string())
                             .property("value", SchemaBuilder::string())
@@ -1318,32 +1369,38 @@ impl FgpService for BrowserService {
                             .property("path", SchemaBuilder::string())
                             .property("secure", SchemaBuilder::boolean())
                             .property("httpOnly", SchemaBuilder::boolean()),
-                    ).build(),
-                )
-                .example("Get Twitter cookies", json!({"domain": ".x.com"}))
-                .errors(&["EXTENSION_NOT_CONNECTED"]),
-
-            MethodInfo::new("browser.notifications.create", "[Extension] Show desktop notification")
-                .schema(
-                    SchemaBuilder::object()
-                        .property(
-                            "title",
-                            SchemaBuilder::string().description("Notification title"),
-                        )
-                        .property(
-                            "message",
-                            SchemaBuilder::string().description("Notification message"),
-                        )
-                        .required(&["title", "message"])
-                        .build(),
-                )
-                .returns(
-                    SchemaBuilder::object()
-                        .property("notificationId", SchemaBuilder::string())
-                        .build(),
-                )
-                .example("Show notification", json!({"title": "Task Complete", "message": "Scraping finished"}))
-                .errors(&["EXTENSION_NOT_CONNECTED"]),
+                    )
+                    .build(),
+            )
+            .example("Get Twitter cookies", json!({"domain": ".x.com"}))
+            .errors(&["EXTENSION_NOT_CONNECTED"]),
+            MethodInfo::new(
+                "browser.notifications.create",
+                "[Extension] Show desktop notification",
+            )
+            .schema(
+                SchemaBuilder::object()
+                    .property(
+                        "title",
+                        SchemaBuilder::string().description("Notification title"),
+                    )
+                    .property(
+                        "message",
+                        SchemaBuilder::string().description("Notification message"),
+                    )
+                    .required(&["title", "message"])
+                    .build(),
+            )
+            .returns(
+                SchemaBuilder::object()
+                    .property("notificationId", SchemaBuilder::string())
+                    .build(),
+            )
+            .example(
+                "Show notification",
+                json!({"title": "Task Complete", "message": "Scraping finished"}),
+            )
+            .errors(&["EXTENSION_NOT_CONNECTED"]),
         ]
     }
 }

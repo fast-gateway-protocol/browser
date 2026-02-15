@@ -401,7 +401,14 @@ fn main() -> Result<()> {
             connect,
             extension_bridge,
             extension_port,
-        } => cmd_start(socket, foreground, !headed, connect, extension_bridge, extension_port),
+        } => cmd_start(
+            socket,
+            foreground,
+            !headed,
+            connect,
+            extension_bridge,
+            extension_port,
+        ),
         Commands::Stop { socket } => cmd_stop(socket),
         Commands::Status { socket } => cmd_status(socket),
         Commands::Open {
@@ -594,16 +601,28 @@ fn main() -> Result<()> {
                     if title.is_some() || color.is_some() {
                         let mut update_params = serde_json::json!({"groupId": gid});
                         if let Some(t) = &title {
-                            update_params.as_object_mut().unwrap().insert("title".to_string(), serde_json::json!(t));
+                            update_params
+                                .as_object_mut()
+                                .unwrap()
+                                .insert("title".to_string(), serde_json::json!(t));
                         }
                         if let Some(c) = &color {
-                            update_params.as_object_mut().unwrap().insert("color".to_string(), serde_json::json!(c));
+                            update_params
+                                .as_object_mut()
+                                .unwrap()
+                                .insert("color".to_string(), serde_json::json!(c));
                         }
-                        let final_response = call_daemon_raw(&socket, "browser.tabGroups.update", update_params)?;
+                        let final_response =
+                            call_daemon_raw(&socket, "browser.tabGroups.update", update_params)?;
                         if cli.json {
                             println!("{}", serde_json::to_string(&final_response)?);
                         } else {
-                            println!("{}", final_response.get("result").unwrap_or(&serde_json::Value::Null));
+                            println!(
+                                "{}",
+                                final_response
+                                    .get("result")
+                                    .unwrap_or(&serde_json::Value::Null)
+                            );
                         }
                         return Ok(());
                     }
@@ -613,7 +632,10 @@ fn main() -> Result<()> {
                 if cli.json {
                     println!("{}", serde_json::to_string(&response)?);
                 } else {
-                    println!("{}", response.get("result").unwrap_or(&serde_json::Value::Null));
+                    println!(
+                        "{}",
+                        response.get("result").unwrap_or(&serde_json::Value::Null)
+                    );
                 }
                 Ok(())
             }
@@ -681,13 +703,17 @@ fn cmd_start(
 
     // Create extension bridge if enabled (shared across threads)
     let bridge: Option<std::sync::Arc<extension_bridge::ExtensionBridge>> = if extension_bridge {
-        Some(std::sync::Arc::new(extension_bridge::ExtensionBridge::new(Some(extension_port))))
+        Some(std::sync::Arc::new(extension_bridge::ExtensionBridge::new(
+            Some(extension_port),
+        )))
     } else {
         None
     };
 
     // Helper to create the service based on mode, with optional extension bridge
-    let create_service = |connect_url: &Option<String>, bridge: Option<std::sync::Arc<extension_bridge::ExtensionBridge>>| -> Result<BrowserService> {
+    let create_service = |connect_url: &Option<String>,
+                          bridge: Option<std::sync::Arc<extension_bridge::ExtensionBridge>>|
+     -> Result<BrowserService> {
         let service = if let Some(url) = connect_url {
             BrowserService::new_connect(url)?
         } else {
@@ -702,7 +728,9 @@ fn cmd_start(
     };
 
     // Helper to start extension bridge WebSocket server
-    let start_extension_bridge = |bridge: Option<std::sync::Arc<extension_bridge::ExtensionBridge>>| {
+    let start_extension_bridge = |bridge: Option<
+        std::sync::Arc<extension_bridge::ExtensionBridge>,
+    >| {
         if let Some(b) = bridge {
             let bridge_clone = b.clone();
             // Start extension bridge in a separate thread with its own tokio runtime
@@ -729,7 +757,8 @@ fn cmd_start(
 
         start_extension_bridge(bridge.clone());
 
-        let service = create_service(&connect, bridge).context("Failed to create BrowserService")?;
+        let service =
+            create_service(&connect, bridge).context("Failed to create BrowserService")?;
         let server =
             FgpServer::new(service, &socket_path).context("Failed to create FGP server")?;
         server.serve().context("Server error")?;
@@ -748,7 +777,8 @@ fn cmd_start(
 
                 start_extension_bridge(bridge.clone());
 
-                let service = create_service(&connect, bridge).context("Failed to create BrowserService")?;
+                let service =
+                    create_service(&connect, bridge).context("Failed to create BrowserService")?;
                 let server =
                     FgpServer::new(service, &socket_path).context("Failed to create FGP server")?;
                 server.serve().context("Server error")?;
@@ -872,8 +902,8 @@ fn call_daemon_raw(
     let mut response = String::new();
     reader.read_line(&mut response)?;
 
-    let parsed: serde_json::Value = serde_json::from_str(&response)
-        .context("Failed to parse daemon response")?;
+    let parsed: serde_json::Value =
+        serde_json::from_str(&response).context("Failed to parse daemon response")?;
 
     // Check for error
     if let Some(error) = parsed.get("error") {

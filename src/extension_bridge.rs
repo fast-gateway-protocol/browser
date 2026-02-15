@@ -87,7 +87,7 @@ pub fn extension_method_name(method: &str) -> &str {
 
 /// Check if a method should be handled by the extension
 pub fn is_extension_method(method: &str) -> bool {
-    EXTENSION_METHODS.iter().any(|m| *m == method)
+    EXTENSION_METHODS.contains(&method)
 }
 
 /// Extension Bridge manages WebSocket connection to Chrome extension
@@ -152,9 +152,15 @@ impl ExtensionBridge {
                         let pending = pending.clone();
 
                         tokio::spawn(async move {
-                            if let Err(e) =
-                                handle_connection(stream, state, connected, request_rx, response_tx, pending)
-                                    .await
+                            if let Err(e) = handle_connection(
+                                stream,
+                                state,
+                                connected,
+                                request_rx,
+                                response_tx,
+                                pending,
+                            )
+                            .await
                             {
                                 tracing::warn!("Extension connection error: {}", e);
                             }
@@ -233,6 +239,7 @@ impl ExtensionBridge {
     }
 
     /// Get connection state for status reporting
+    #[allow(dead_code)]
     pub async fn connection_state(&self) -> ConnectionState {
         self.state.read().await.clone()
     }
@@ -271,7 +278,9 @@ impl ExtensionBridge {
         } else {
             Err(anyhow::anyhow!(
                 "Extension error: {}",
-                response.error.unwrap_or_else(|| "Unknown error".to_string())
+                response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string())
             ))
         }
     }
@@ -381,7 +390,10 @@ mod tests {
     #[test]
     fn test_extension_method_name() {
         assert_eq!(extension_method_name("browser.tabs.group"), "tabs.group");
-        assert_eq!(extension_method_name("browser.cookies.getAll"), "cookies.getAll");
+        assert_eq!(
+            extension_method_name("browser.cookies.getAll"),
+            "cookies.getAll"
+        );
         assert_eq!(extension_method_name("tabs.group"), "tabs.group"); // Already stripped
     }
 }

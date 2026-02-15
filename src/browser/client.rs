@@ -143,13 +143,13 @@ impl BrowserClient {
     pub async fn connect(debug_url: &str) -> Result<Self> {
         tracing::info!("Connecting to existing Chrome at: {}", debug_url);
 
-        let (browser, mut handler) = Browser::connect(debug_url)
-            .await
-            .with_context(|| format!(
+        let (browser, mut handler) = Browser::connect(debug_url).await.with_context(|| {
+            format!(
                 "Failed to connect to Chrome at {}. \
                  Make sure Chrome is running with --remote-debugging-port=9222",
                 debug_url
-            ))?;
+            )
+        })?;
 
         // Spawn handler task - just drain events, no logging overhead
         tokio::spawn(async move { while handler.next().await.is_some() {} });
