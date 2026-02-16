@@ -909,7 +909,11 @@ mod tests {
         assert!(
             found > 0,
             "At least one @eN ref should resolve to a DOM element, but none did. Nodes: {:?}",
-            snapshot.nodes.iter().map(|n| (&n.ref_id, &n.role, &n.name)).collect::<Vec<_>>()
+            snapshot
+                .nodes
+                .iter()
+                .map(|n| (&n.ref_id, &n.role, &n.name))
+                .collect::<Vec<_>>()
         );
     }
 
